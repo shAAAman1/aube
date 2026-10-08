@@ -23,6 +23,15 @@ class FetchError(Exception):
     pass
 
 
+class _HttpsOnlyRedirect(urllib.request.HTTPRedirectHandler):
+    """urllib suit par défaut une redirection vers http:// : on la refuse."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if urlparse(newurl).scheme != "https":
+            raise FetchError(f"redirection refusée hors https : {req.full_url} → {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def retry_after_s(value: str | None, now: datetime | None = None) -> float | None:
     """En-tête Retry-After (RFC 9110) : délai en secondes ou date HTTP. None si absent ou illisible."""
     value = (value or "").strip()
@@ -49,6 +58,7 @@ class Fetcher:
         self.sleep = sleep
         # Au-delà, on abandonne plutôt que de bloquer le run : l'échec est consigné et rattrapé.
         self.max_retry_after_s = max_retry_after_s
+        self.opener = urllib.request.build_opener(_HttpsOnlyRedirect)
 
     def get(self, url: str) -> Response:
         if urlparse(url).scheme != "https":
@@ -61,11 +71,11 @@ class Fetcher:
             wait = None
             try:
                 req = urllib.request.Request(url, headers={"User-Agent": self.user_agent})
-                with urllib.request.urlopen(req, timeout=self.timeout_s) as r:
+                with self.opener.open(req, timeout=self.timeout_s) as r:
                     body = r.read(self.max_bytes + 1)
                     if len(body) > self.max_bytes:
                         raise FetchError(f"réponse > {self.max_bytes} octets : {url}")
-                    return Response(url=url, status=r.status, body=body,
+                    return Response(url=r.geturl(), status=r.status, body=body,
                                     content_type=r.headers.get("Content-Type", ""))
             except urllib.error.HTTPError as e:
                 last = f"HTTP {e.code}"
