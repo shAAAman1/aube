@@ -60,8 +60,12 @@ class FakeWeb:
         self.cern = []            # [(guid, title)]
         self.inspire = []         # [{'control_number', 'updated', 'title'}]
         self.inspire_shift_after_page1 = False
+        self.inspire_drop_before_page2 = False
         self.oai_page = 100       # enregistrements par page OAI-PMH
         self.oai_errors = {}      # set -> code d'erreur OAI à renvoyer
+        self.oai_forced = []      # réponses OAI imposées, servies dans l'ordre
+        self.oai_on_page2 = None  # hook(web) appelé avant la première page suivante
+        self.oai_deleted = []     # identifiants servis comme supprimés
         self.down = set()         # préfixes d'URL en panne
         self.calls = []
 
@@ -82,6 +86,9 @@ class FakeWeb:
                             "application/rss+xml")
         if u.netloc == "inspirehep.net":
             size, page = int(q["size"]), int(q["page"])
+            if self.inspire_drop_before_page2 and page > 1:
+                self.inspire.pop(0)
+                self.inspire_drop_before_page2 = False
             if self.inspire_shift_after_page1 and page > 1:
                 # un enregistrement de la page 1 est modifié et glisse en page 2
                 self.inspire.insert(size, self.inspire.pop(0))
@@ -95,10 +102,19 @@ class FakeWeb:
         raise FetchError(f"URL inattendue {url}")
 
     def _oai(self, q):
-        """Jetons sans état (set|from|until|skip), comme oaipmh.arxiv.org."""
+        """Jetons sans état (set|from|until|skip), comme oaipmh.arxiv.org.
+
+        datestamp d'un enregistrement = champ « stamp » de sa dernière version s'il est donné
+        (jour d'annonce ou de modification), sinon le jour de sa date de version (raccourci).
+        """
+        if self.oai_forced:
+            return self.oai_forced.pop(0)
         if "resumptionToken" in q:
             set_spec, a, b, skip = q["resumptionToken"].split("|")
             skip = int(skip)
+            if self.oai_on_page2:          # ex. un enregistrement déjà servi change de datestamp
+                hook, self.oai_on_page2 = self.oai_on_page2, None
+                hook(self)
         else:
             set_spec, a, b, skip = q["set"], q["from"], q["until"], 0
         if set_spec in self.oai_errors:
@@ -112,7 +128,7 @@ class FakeWeb:
         for rid, ps in by_id.items():
             ps.sort(key=lambda p: int(p["v"][1:]))
             when = [datetime.fromisoformat(p["updated"].replace("Z", "+00:00")) for p in ps]
-            stamp = max(when).date().isoformat()   # datestamp = dernière modification
+            stamp = ps[-1].get("stamp") or when[-1].date().isoformat()
             if cat in ps[-1]["cats"] and a <= stamp <= b:
                 recs.append((stamp, rid, [(p["v"], w) for p, w in zip(ps, when)],
                              ps[-1]["cats"], ps[-1]["title"]))
@@ -120,4 +136,9 @@ class FakeWeb:
         page = recs[skip: skip + self.oai_page]
         more = skip + self.oai_page < len(recs)
         token = f"{set_spec}|{a}|{b}|{skip + self.oai_page}" if more else ("" if skip else None)
-        return oai([(rid, st, vs, cats, t) for st, rid, vs, cats, t in page], token)
+        body = oai([(rid, st, vs, cats, t) for st, rid, vs, cats, t in page], token)
+        for rid in self.oai_deleted:   # enregistrement supprimé : en-tête seul, sans métadonnées
+            body = body.replace(b"<ListRecords>", b"<ListRecords><record><header status=\"deleted\">"
+                                b"<identifier>oai:arXiv.org:" + rid.encode() + b"</identifier>"
+                                b"<datestamp>" + a.encode() + b"</datestamp></header></record>", 1)
+        return body

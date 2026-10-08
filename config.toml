@@ -17,9 +17,8 @@ categories = ["hep-ex", "hep-ph", "hep-th", "cond-mat.supr-con"]
 # filtrer par date de mise à jour (voir aube/sources/arxiv.py). Sets vérifiés par ListSets
 # le 2026-10-04 ; chaque set inclut les cross-lists.
 sets = { "hep-ex" = "physics:hep-ex", "hep-ph" = "physics:hep-ph", "hep-th" = "physics:hep-th", "cond-mat.supr-con" = "physics:cond-mat:supr-con" }
-# Fenêtre : jours de datestamp clos, de (dernier succès − overlap_days) à hier UTC inclus.
-# Le recouvrement rattrape un enregistrement qui aurait glissé pendant la pagination
-# (jetons sans état : from + skip). Doublons absorbés par l'index (clé id+version).
+# Fenêtre : jours de datestamp clos, de (dernier succès − overlap_days) à hier UTC inclus,
+# interrogés un jour à la fois (voir Run._oai_day). Doublons absorbés par l'index (id+version).
 overlap_days = 3
 delay_s = 3.5            # arXiv demande >= 3 s entre requêtes
 
@@ -46,6 +45,9 @@ enabled = true
 # ramène les anciens enregistrements modifiés (4930 contre 1480 sur la même fenêtre).
 query = "da >= {since} and da <= {until}"
 overlap_days = 3
+# Rattrapage après panne par tranches de 14 jours : ~570 entrées/jour au plus observées,
+# MAX_DEPTH = 10 000.
+max_window_days = 14
 page_size = 250
 delay_s = 1.0
 fields = "control_number,titles.title,abstracts.value,arxiv_eprints,authors.full_name,inspire_categories,document_type,publication_info,citation_count,references.record,created,updated,earliest_date"

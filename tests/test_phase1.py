@@ -23,9 +23,13 @@ def env(tmp_path):
     return cfg, web
 
 
-def paper(n, when, cats=("hep-th",), v="v1"):
-    return {"id": f"2610.{n:05d}", "v": v, "updated": when.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "cats": list(cats), "title": f"Article {n}"}
+def paper(n, when, cats=("hep-th",), v="v1", stamp=None):
+    """stamp : datestamp OAI (jour d'annonce), par défaut le jour de `when`."""
+    p = {"id": f"2610.{n:05d}", "v": v, "updated": when.strftime("%Y-%m-%dT%H:%M:%SZ"),
+         "cats": list(cats), "title": f"Article {n}"}
+    if stamp:
+        p["stamp"] = stamp
+    return p
 
 
 def go(cfg, web, now):
@@ -44,19 +48,81 @@ def _in_window(papers, a, b):
 
 def test_pagination_complete_et_sans_doublon(env):
     cfg, web = env
-    web.oai_page = 40
+    web.oai_page = 10
     web.papers = [paper(i, T0 - timedelta(hours=i)) for i in range(450)]
     m = go(cfg, web, T0)
     assert m["status"] == "ok", m["errors"]
     oai_fetches = [f for f in m["fetches"] if f["kind"] == "arxiv_oai" and f["key"] == "hep-th"]
-    assert len(oai_fetches) == 3                         # 96 enregistrements, pages de 40
+    # un jour à la fois (27 → 30 sept.), 24 enregistrements par jour = 3 pages, et seconde
+    # passe dès qu'un jour dépasse une page : 4 × 2 × 3 requêtes
+    assert len(oai_fetches) == 24
+    assert all("from=2026-09-" in f["url"] or "resumptionToken" in f["url"] for f in oai_fetches)
     s = Store(cfg.data_dir)
     n = lambda: s.db.execute("SELECT count(*) FROM items WHERE source='arxiv'").fetchone()[0]
-    # premier run : jours clos 27 → 30 septembre (hier − 3 jours de recouvrement)
     assert n() == _in_window(web.papers, "2026-09-27", "2026-09-30") == 96
     # second run : recouvrement, seul le 1er octobre s'ajoute, aucun doublon
     go(cfg, web, T0 + timedelta(days=1))
     assert n() == _in_window(web.papers, "2026-09-27", "2026-10-01") == 97
+
+
+def test_glissement_de_pagination_rattrape_par_la_seconde_passe(env):
+    """Un enregistrement de la page 1 reçoit une v2 annoncée aujourd'hui pendant la pagination :
+    le jeton sans état (skip) saute alors le premier enregistrement de la page 2."""
+    cfg, web = env
+    cfg.raw["arxiv"]["categories"] = ["hep-th"]
+    web.oai_page = 10
+    day = T0 - timedelta(days=1)                       # 30 septembre
+    web.papers = [paper(i, day.replace(hour=1) + timedelta(minutes=i)) for i in range(25)]
+    page2_first = web.papers[10]["id"]
+    web.oai_on_page2 = lambda w: w.papers.append(
+        paper(0, T0, v="v2", stamp=T0.date().isoformat()))
+    m = go(cfg, web, T0)
+    assert m["status"] == "ok", m["errors"]
+    s = Store(cfg.data_dir)
+    assert s.known("arxiv", page2_first)               # sauté en passe 1, repris en passe 2
+    assert s.db.execute("SELECT count(DISTINCT item_id) FROM items").fetchone()[0] == 25
+
+
+def test_annonce_tardive_collectee(env):
+    """Soumis le 10 septembre, annoncé (datestamp) le 2 octobre, comme 2610.00146."""
+    cfg, web = env
+    web.papers = [paper(146, datetime(2026, 9, 10, 12, 13, tzinfo=timezone.utc), stamp="2026-10-02")]
+    go(cfg, web, T0 + timedelta(days=1))               # until = 1er octobre : pas encore annoncé
+    s = Store(cfg.data_dir)
+    assert not s.known("arxiv", "2610.00146")
+    go(cfg, web, T0 + timedelta(days=2))               # until = 2 octobre
+    assert s.known("arxiv", "2610.00146", "v1")
+
+
+def test_gardes_de_pagination_oai(env):
+    from .fake import oai
+    cfg, web = env
+    cfg.raw["arxiv"]["categories"] = ["hep-th"]
+    rec = [("2610.00001", "2026-09-27", [("v1", T0 - timedelta(days=4))], ["hep-th"], "t")]
+    web.oai_forced = [oai([], token="x")]              # page vide mais jeton présent
+    m = go(cfg, web, T0)
+    assert any("vide suivie" in e["error"] for e in m["errors"]), m["errors"]
+    web.oai_forced = [oai(rec, token="t1"), oai(rec, token="t1")]   # jeton qui boucle
+    m = go(cfg, web, T0 + timedelta(minutes=1))
+    assert any("répété" in e["error"] for e in m["errors"]), m["errors"]
+
+
+def test_enregistrement_supprime_ignore(env):
+    cfg, web = env
+    web.papers = [paper(1, T0 - timedelta(hours=5))]
+    web.oai_deleted = ["2610.99999"]
+    m = go(cfg, web, T0)
+    assert m["status"] == "ok", m["errors"]
+    assert Store(cfg.data_dir).db.execute("SELECT item_id FROM items").fetchall() == [("2610.00001",)]
+
+
+def test_ligne_runs_conservee_si_la_premiere_source_echoue(env):
+    cfg, web = env
+    web.down.add("https://oaipmh.arxiv.org")
+    m = go(cfg, web, T0)
+    assert m["status"] == "partial"
+    rows = Store(cfg.data_dir).db.execute("SELECT run_id, status FROM runs").fetchall()
+    assert rows == [(m["run_id"], "partial")]
 
 
 def test_nouvelle_version_est_un_nouvel_element(env):
@@ -74,7 +140,7 @@ def test_remplacement_ancien_et_version_intermediaire(env):
     cfg, web = env
     old = datetime(2021, 2, 13, 7, 22, tzinfo=timezone.utc)
     web.papers = [paper(7, old), paper(7, old + timedelta(days=30), v="v2"),
-                  paper(7, T0 - timedelta(hours=20), v="v3")]
+                  paper(7, T0 - timedelta(days=2), v="v3", stamp="2026-09-30")]
     m = go(cfg, web, T0)
     assert m["status"] == "ok", m["errors"]
     rows = Store(cfg.data_dir).db.execute(
@@ -220,6 +286,29 @@ def test_erreur_de_run_bornee_a_la_fenetre(env):
     # fenêtre de 15 jours : elle en fait partie et bloque
     rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=14, hours=1), days=15)
     assert len(rep["problemes"]["erreur_de_run"]) == 2
+
+
+def test_inspire_total_instable_detecte(env):
+    cfg, web = env
+    web.inspire = [{"control_number": i, "updated": "2026-09-30T10:00:00", "title": "x"}
+                   for i in range(1, 301)]
+    web.inspire_drop_before_page2 = True                # fusion ou suppression en cours de run
+    m = go(cfg, web, T0)
+    errs = [e["error"] for e in m["errors"] if e["source"] == "inspire"]
+    assert errs and "total instable" in errs[0], m["errors"]
+    assert not [w for w in m["windows"] if w["source"] == "inspire"]
+
+
+def test_inspire_rattrapage_par_tranches(env):
+    cfg, web = env
+    web.inspire = [{"control_number": 1, "updated": "2026-09-01T10:00:00", "title": "x"}]
+    go(cfg, web, T0)                                    # fenêtre 27 → 30 septembre
+    m = go(cfg, web, T0 + timedelta(days=40))           # 40 jours de panne
+    w = [w for w in m["windows"] if w["source"] == "inspire"][0]
+    assert (w["since"], w["until"]) == ("2026-09-27", "2026-10-10")   # 14 jours au plus
+    m = go(cfg, web, T0 + timedelta(days=41))
+    w = [w for w in m["windows"] if w["source"] == "inspire"][0]
+    assert w["since"] == "2026-10-07"                   # avance : reprise 3 jours avant
 
 
 def test_archive_deterministe(env, tmp_path):

@@ -70,28 +70,46 @@ class Run:
         repose sur le suivi des jetons jusqu'à leur absence, et sur le témoin RSS.
         """
         c = self.cfg.section("arxiv")
-        set_spec = c["sets"][cat]
         until = (self.now - timedelta(days=1)).date()
         last = self.store.last_complete_until("arxiv_oai", cat)
         base = date.fromisoformat(last) if last else until
         since = base - timedelta(days=c["overlap_days"])
-        token, received, records, tokens_seen = None, 0, 0, set()
+        keys, day = set(), since
+        while day <= until:
+            keys |= self._oai_day(cat, c["sets"][cat], day, c["delay_s"])
+            day += timedelta(days=1)
+        self.window("arxiv_oai", cat, since.isoformat(), until.isoformat(), None, len(keys))
+
+    def _oai_day(self, cat: str, set_spec: str, day: date, delay: float) -> set:
+        """Un seul jour de datestamp par requête, jamais une fenêtre de plusieurs jours.
+
+        Les jetons sont sans état (from + skip) : si un enregistrement déjà servi change de
+        datestamp pendant la pagination, la page suivante saute un enregistrement. Sur un jour
+        clos, un tel enregistrement part vers aujourd'hui (relu au prochain run) ; celui qui
+        a été sauté reste dans le jour : une seconde passe complète le récupère. Elle n'a lieu
+        que si le jour a demandé plus d'une page (~1300 enregistrements, jamais vu à ce jour).
+        """
+        keys, passes = set(), 0
         while True:
-            body, digest = self.fetch("arxiv_oai", cat, arxiv.oai_url(set_spec, since, until, token))
-            items, token, n = arxiv.parse_oai(body)
-            self.sleep(c["delay_s"])
-            self.manifest["fetches"][-1].update(n_items=len(items), n_records=n)
-            self.store.add_items(items, self.run_id, digest)
-            received += len(items)
-            records += n
-            if not token:
-                break
-            if n == 0:
-                raise arxiv.ArxivError("page OAI-PMH vide suivie d'un resumptionToken")
-            if token in tokens_seen:
-                raise arxiv.ArxivError(f"resumptionToken répété : {token}")
-            tokens_seen.add(token)
-        self.window("arxiv_oai", cat, since.isoformat(), until.isoformat(), None, received)
+            passes += 1
+            token, pages, tokens_seen = None, 0, set()
+            while True:
+                body, digest = self.fetch("arxiv_oai", cat, arxiv.oai_url(set_spec, day, day, token))
+                items, token, n = arxiv.parse_oai(body)
+                self.sleep(delay)
+                pages += 1
+                self.manifest["fetches"][-1].update(n_items=len(items), n_records=n)
+                self.store.add_items(items, self.run_id, digest)
+                keys |= {(it.item_id, it.version) for it in items}
+                if not token:
+                    break
+                if n == 0:
+                    raise arxiv.ArxivError("page OAI-PMH vide suivie d'un resumptionToken")
+                if token in tokens_seen:
+                    raise arxiv.ArxivError(f"resumptionToken répété : {token}")
+                tokens_seen.add(token)
+            if pages == 1 or passes == 2:
+                return keys
 
     def arxiv_witness(self, cat: str):
         body, digest = self.fetch("arxiv_rss", cat, arxiv.RSS.format(cat=cat))
@@ -116,6 +134,9 @@ class Run:
         last = self.store.last_complete_until("inspire", "literature")
         base = datetime.fromisoformat(last).date() if last else until
         since = base - timedelta(days=c["overlap_days"])
+        # Après une longue panne, rattrapage par morceaux : une fenêtre trop large dépasserait
+        # MAX_DEPTH et échouerait à chaque run sans jamais avancer.
+        until = min(until, since + timedelta(days=c.get("max_window_days", 14) - 1))
         page, expected, n, seen = 1, None, 0, set()
         while True:
             url = inspire.api_url(c["query"], since, until, c["page_size"], c["fields"], page)
@@ -148,6 +169,7 @@ class Run:
         db = self.store.db
         db.execute("INSERT INTO runs (run_id, started_at) VALUES (?,?)",
                    (self.run_id, self.manifest["started_at"]))
+        db.commit()  # sinon le rollback d'une première source en échec efface aussi cette ligne
         jobs = [("arxiv", cat, lambda c=cat: self.arxiv_category(c))
                 for cat in self.cfg.section("arxiv").get("categories", [])]
         if self.cfg.section("arxiv_witness").get("enabled", True):
