@@ -289,3 +289,12 @@ semaine.
   dans le message de commit. `pyproject.toml` : `license = "AGPL-3.0-or-later"`.
 - La licence porte sur le code. Les données de `data/` ne sont pas redistribuées et gardent
   les conditions de leurs sources.
+- Dépôt poussé sur GitHub (privé) : `git@github.com:shAAAman1/aube.git`, `main` = `3f24000`,
+  17 commits signés ; GitHub détecte la licence AGPL-3.0. Pas de Gitea sur le Bixeon pour
+  l'instant (rien d'installé) : le plan du 5 octobre le prévoyait après le critère de phase 1.
+- Dépôt rendu **public** le même jour (décision du propriétaire, « licence libre »). Avant
+  l'ouverture : `git grep` sur toutes les révisions, hors LICENSE et fixtures, pour adresses
+  e-mail, mots de passe, jetons et clés. Seul résultat : `toi@example.org` dans
+  `config.local.toml.example`. Les fixtures contiennent deux adresses publiques des flux
+  (`rss-help@arxiv.org`, `bulletin-editors@cern.ch`). `config.local.toml` et `data/` n'ont
+  jamais été committés.

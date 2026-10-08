@@ -102,7 +102,7 @@ journalctl --user -u aube-collect     # journaux du timer
 ```
 
 ## Git
-- Dépôt GitHub **privé**. Licence **AGPL-3.0-or-later** (décision du propriétaire, 2026-10-08) : fichier `LICENSE`, champ `license` de `pyproject.toml`. Elle couvre le code, pas les données archivées dans `data/`.
+- Dépôt GitHub **public** (`github.com/shAAAman1/aube`, rendu visible le 2026-10-08 ; historique vérifié sans secret ni adresse personnelle avant l'ouverture). Licence **AGPL-3.0-or-later** (décision du propriétaire, 2026-10-08) : fichier `LICENSE`, champ `license` de `pyproject.toml`. Elle couvre le code, pas les données archivées dans `data/`.
 - Le propriétaire signe ses commits avec une YubiKey Bio (`git commit -S`). **Ne crée pas de commit toi-même.** Prépare les changements, montre le diff, propose un message de commit, et laisse-le committer.
 - Convention en place : un patch numéroté + son `.msg` dans `~/aube-commits/`, appliqués par `apply.sh` (qui exige que l'index soit égal à HEAD et lance les tests à chaque étape). Un nouveau changement = le patch suivant, généré contre l'état rejoué des précédents.
 - `data/` et `config.local.toml` ne doivent jamais être versionnés. Vérifie `git status` avant toute proposition de commit.
