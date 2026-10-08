@@ -281,3 +281,11 @@ semaine.
   restent propres, la fenêtre de 14 jours les laissera sortir le 18 octobre et le critère peut
   être atteint au plus tôt le **21 octobre** (14 jours consécutifs depuis le 8).
 - Prochaine échéance : 2026-10-09 02:40 CEST.
+
+### Licence : AGPL-3.0-or-later
+- Décision du propriétaire (« licence libre »), conforme à son choix du 5 octobre. Jusqu'ici le
+  dépôt n'avait aucune licence, donc tous droits réservés.
+- Texte : copie canonique de Debian `/usr/share/common-licenses/AGPL-3.0`, SHA256 consigné
+  dans le message de commit. `pyproject.toml` : `license = "AGPL-3.0-or-later"`.
+- La licence porte sur le code. Les données de `data/` ne sont pas redistribuées et gardent
+  les conditions de leurs sources.

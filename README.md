@@ -118,3 +118,9 @@ supprimée doivent chacun être détectés.
 3. Synthèse avec un modèle local standard (llama.cpp, API compatible OpenAI)
 4. Boucle de retour et registre des signaux
 5. Bascule sur le moteur déterministe (Rust)
+
+## Licence
+
+Code sous **GNU AGPL-3.0-or-later** (fichier `LICENSE`). La licence couvre le code d'Aube,
+pas les données archivées dans `data/` : les métadonnées arXiv et INSPIRE et les textes de
+CERN restent soumis aux conditions de leurs sources.

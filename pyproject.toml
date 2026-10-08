@@ -3,6 +3,8 @@ name = "aube"
 version = "0.1.0"
 description = "Veille physique locale — phase 1 : collecte et archive rejouable"
 requires-python = ">=3.11"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
 dependencies = ["defusedxml==0.7.1"]
 
 [project.optional-dependencies]
