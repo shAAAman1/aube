@@ -1,7 +1,17 @@
-"""arXiv : API Atom (collecte) et RSS quotidien (témoin indépendant). Parseurs purs."""
+"""arXiv : OAI-PMH arXivRaw (collecte), RSS quotidien (témoin indépendant) et API Atom
+(collecte jusqu'au 2026-10-04, parseur conservé pour rejouer les blobs archivés). Parseurs purs.
+
+Pourquoi OAI-PMH (constaté le 2026-10-04) : l'API Atom n'a qu'un filtre de date, submittedDate.
+Un filtre `lastUpdatedDate:[…]` est réécrit en silence en submittedDate : les remplacements
+d'articles anciens (0/20 dans l'annonce hep-th du 2 octobre) et les annonces tardives
+n'étaient jamais collectés, alors que le total annoncé « collait ». En OAI-PMH, la datestamp
+d'un enregistrement est la date (UTC) de son annonce ou de sa dernière modification, et
+arXivRaw liste toutes ses versions : 35/35 nouveaux, 20/20 cross, 20/20 remplacements.
+"""
 
 import re
-from datetime import datetime
+from datetime import date, datetime
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlencode
 
 from defusedxml import ElementTree as ET
@@ -12,8 +22,10 @@ NS = {
     "a": "http://www.w3.org/2005/Atom",
     "os": "http://a9.com/-/spec/opensearch/1.1/",
     "arxiv": "http://arxiv.org/schemas/atom",
+    "o": "http://www.openarchives.org/OAI/2.0/",
+    "r": "http://arxiv.org/OAI/arXivRaw/",
 }
-API = "https://export.arxiv.org/api/query"
+OAI = "https://oaipmh.arxiv.org/oai"
 RSS = "https://rss.arxiv.org/rss/{cat}"
 
 _ID_RE = re.compile(r"(?:abs/|arXiv\.org:|arXiv:)([a-z\-\.]+/\d{7}|\d{4}\.\d{4,5})(v\d+)?", re.I)
@@ -31,17 +43,77 @@ def split_id(s: str) -> tuple[str, str]:
     return m.group(1).lower(), (m.group(2) or "").lower()
 
 
-def _fmt(dt: datetime) -> str:
-    return dt.strftime("%Y%m%d%H%M")
+def oai_url(set_spec: str, since: date, until: date, token: str | None = None) -> str:
+    """ListRecords arXivRaw sur des jours de datestamp CLOS, bornes incluses (UTC).
+
+    Le resumptionToken est opaque : on le ré-encode comme toute valeur de paramètre
+    (vérifié le 2026-10-04 : encodé ou brut, le serveur rend la même page).
+    """
+    if token:
+        return OAI + "?" + urlencode({"verb": "ListRecords", "resumptionToken": token})
+    return OAI + "?" + urlencode({"verb": "ListRecords", "metadataPrefix": "arXivRaw",
+                                  "set": set_spec, "from": since.isoformat(),
+                                  "until": until.isoformat()})
 
 
-def api_url(cat: str, since: datetime, until: datetime, start: int, size: int) -> str:
-    # La borne 'until' est figée dans la requête : le total ne bouge pas pendant la pagination.
-    q = f"cat:{cat} AND lastUpdatedDate:[{_fmt(since)} TO {_fmt(until)}]"
-    return API + "?" + urlencode({
-        "search_query": q, "start": start, "max_results": size,
-        "sortBy": "lastUpdatedDate", "sortOrder": "ascending",
-    })
+def _rfc822_iso(s: str) -> str:
+    """'Thu, 01 Oct 2026 09:23:39 GMT' -> '2026-10-01T09:23:39Z' (format des dates de l'API)."""
+    try:
+        return parsedate_to_datetime(s).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except (TypeError, ValueError) as e:
+        raise ArxivError(f"date de version illisible : {s!r}") from e
+
+
+def parse_oai(raw: bytes) -> tuple[list[Item], str | None, int]:
+    """Une page ListRecords -> (éléments, resumptionToken ou None, nombre d'enregistrements).
+
+    Un élément par VERSION listée (clé id+version) : une v2 annoncée puis dépassée par une v3
+    avant notre passage reste ainsi archivée. Les enregistrements supprimés sont comptés mais
+    ne produisent aucun élément.
+    """
+    root = ET.fromstring(raw)
+    err = root.find("o:error", NS)
+    if err is not None:
+        if err.get("code") == "noRecordsMatch":   # jour sans annonce (week-end, férié)
+            return [], None, 0
+        raise ArxivError(f"erreur OAI-PMH {err.get('code')} : {' '.join((err.text or '').split())}")
+    lr = root.find("o:ListRecords", NS)
+    if lr is None:
+        raise ArxivError("ListRecords absent : réponse OAI-PMH non conforme")
+    items, n = [], 0
+    for rec in lr.findall("o:record", NS):
+        n += 1
+        header = rec.find("o:header", NS)
+        if header is None or header.get("status") == "deleted":
+            continue
+        md = rec.find("o:metadata/r:arXivRaw", NS)
+        if md is None:
+            raise ArxivError(f"arXivRaw absent : {header.findtext('o:identifier', '', NS)}")
+        item_id = " ".join((md.findtext("r:id", "", NS)).split()).lower()
+        if not item_id:
+            raise ArxivError("enregistrement sans <id>")
+        versions = [((v.get("version") or "").lower(), _rfc822_iso(v.findtext("r:date", "", NS)))
+                    for v in md.findall("r:version", NS)]
+        if not versions or not all(re.fullmatch(r"v\d+", v) for v, _ in versions):
+            raise ArxivError(f"versions illisibles pour {item_id} : {versions}")
+        cats = (md.findtext("r:categories", "", NS)).split()
+        meta = {
+            # Primaire = première de <categories> : non spécifié, mais identique au
+            # primary_category de l'API pour 315/315 identifiants communs (2026-10-04).
+            "primary": cats[0] if cats else "",
+            "categories": sorted(set(cats)),
+            "authors": " ".join((md.findtext("r:authors", "", NS)).split()),
+            "doi": " ".join((md.findtext("r:doi", "", NS)).split()),
+            "journal_ref": " ".join((md.findtext("r:journal-ref", "", NS)).split()),
+            "datestamp": header.findtext("o:datestamp", "", NS).strip(),
+        }
+        title = " ".join((md.findtext("r:title", "", NS)).split())
+        for v, when in versions:
+            items.append(Item(source="arxiv", item_id=item_id, version=v, title=title,
+                              published=versions[0][1], updated=when, meta=meta))
+    tok = lr.find("o:resumptionToken", NS)
+    token = (tok.text or "").strip() if tok is not None else ""
+    return items, token or None, n
 
 
 def _text(el, path):
@@ -50,6 +122,7 @@ def _text(el, path):
 
 
 def parse_api(raw: bytes) -> tuple[list[Item], int]:
+    """Ancienne collecte (API Atom). Ne sert plus qu'au rejeu des blobs `arxiv_api` archivés."""
     root = ET.fromstring(raw)
     total_el = root.find("os:totalResults", NS)
     if total_el is None:

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/" 
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/ http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd">
+    <responseDate>2026-10-04T02:47:03Z</responseDate>
+                <request verb="ListRecords" metadataPrefix="arXivRaw" from="2026-09-30" until="2026-10-03" set="physics:hep-th">http://oaipmh.arxiv.org/oai</request>
+
+
+    <ListRecords>
+                    <record>
+                <header>
+        <identifier>oai:arXiv.org:2102.06878</identifier>
+        <datestamp>2026-10-02</datestamp>
+            <setSpec>physics:hep-th</setSpec>
+    </header>
+
+            <metadata>
+                        <arXivRaw xmlns="http://arxiv.org/OAI/arXivRaw/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://arxiv.org/OAI/arXivRaw/ https://oaipmh.arxiv.org/OAI/arXivRaw.xsd">
+        <id>2102.06878</id>
+        <submitter>Namani Srinivas</submitter>
+            <version version="v1">
+                <date>Sat, 13 Feb 2021 07:22:28 GMT</date>
+                <size>4kb</size>
+            </version>
+            <version version="v2">
+                <date>Thu, 18 Mar 2021 05:04:11 GMT</date>
+                <size>5kb</size>
+            </version>
+            <version version="v3">
+                <date>Sun, 12 Nov 2023 06:23:55 GMT</date>
+                <size>6kb</size>
+            </version>
+            <version version="v4">
+                <date>Thu, 15 Jan 2026 02:51:01 GMT</date>
+                <size>7kb</size>
+            </version>
+            <version version="v5">
+                <date>Thu, 01 Oct 2026 09:23:39 GMT</date>
+                <size>11kb</size>
+            </version>
+        <title>Thermodynamics of Bosonic Higher Spin Fields</title>
+        <authors>N. Srinivas</authors>
+        <categories>hep-th</categories>
+            <comments>13 pages, 1 Figure, added Interacting Theory and five references</comments>
+            <license>http://creativecommons.org/licenses/by-nc-sa/4.0/</license>
+            <abstract>In this paper, I calculated the partition function of the quantum statistical system of free massless higher spin (HS) bosonic fields with zero chemical potential value on $d$-dimensional Minkowski spacetime by using Feynman&#39;s path integral approach, which is a nontrivial result that explains the self-duality between the quantum statistical system of these fields of $s \geq 2$ over $d \geq 4$ dimensional Minkowski spacetime and the quantum statistical system of Klein-Gordon bosonic fields on 4-dimensional Minkowski spacetime at thermal equilibrium. However, I used the dimensional regularization approach to determine the free energy of this system, and the results indicate that the presence of ultraviolet divergences (UV) could possibly be eliminated, which also ensures that Lorentz and gauge symmetries are preserved at thermal equilibrium. In particular, the most significant result is that the average energy spectrum of the quantum statistical system of massless free bosonic HS fields is similar to the blackbody radiation energy spectrum at different temperatures. It also explains the universe&#39;s cosmic microwave background (CMB) radiation spectrum (COBE data) at a 2.7 Kelvin temperature. The average energy spectrum of this system decreases with increasing $\beta$ value, as shown in this paper. However, the entropy of these fields also explains their self-duality with Klein-Gordon bosonic fields in 4-dimensional Minkowski spacetime. In this paper, I discussed the spontaneous symmetry breaking in the interacting bosonic higher spin fields on $d$-dimensional Minkowski spacetime, as well as the breakdown of self-duality between the interacting quantum statistical system of bosonic higher spin fields over $d\geq 4$-dimensional Minkowski spacetime and Klein-Gordon bosonic fields at thermal equilibrium points over 4-dimensional Minkowski spacetime.</abstract>
+    </arXivRaw>
+
+            </metadata>
+        </record>
+                    <record>
+                <header>
+        <identifier>oai:arXiv.org:2610.00146</identifier>
+        <datestamp>2026-10-02</datestamp>
+            <setSpec>physics:hep-ph</setSpec>
+            <setSpec>physics:hep-th</setSpec>
+            <setSpec>physics:quant-ph</setSpec>
+    </header>
+
+            <metadata>
+                        <arXivRaw xmlns="http://arxiv.org/OAI/arXivRaw/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://arxiv.org/OAI/arXivRaw/ https://oaipmh.arxiv.org/OAI/arXivRaw.xsd">
+        <id>2610.00146</id>
+        <submitter>Sergio Campos</submitter>
+            <version version="v1">
+                <date>Thu, 10 Sep 2026 12:13:32 GMT</date>
+                <size>858kb</size>
+            </version>
+        <title>Dark-State Interference in an Effective Confined Three-Level Color System</title>
+        <authors>S. D. Campos (Federal University of S\~ao Carlos)</authors>
+        <categories>hep-ph hep-th quant-ph</categories>
+            <license>http://creativecommons.org/licenses/by/4.0/</license>
+            <abstract>In this work, a QCD-inspired effective model describes dark-state interference in a confined three-state system with two low-energy $Q\overline{Q}$ states, $|1\rangle$ and $|2\rangle$, and a gluon-excited hybrid state, $|H\rangle$. A stationary chromoelectric flux-tube background enters the unperturbed Hamiltonian, while a time-dependent chromoelectric perturbation couples $|1\rangle$ and $|2\rangle$ to $|H\rangle$ in a $\Lambda$-type configuration. Under two-photon\footnote{We retain standard terms like ``two-photon&#39;&#39; from the EIT literature only by mathematical analogy, but they do not refer to electromagnetic photons but to the effective frequencies and energy mismatches of chromoelectric perturbations and gluonic excitations that connect confined states.} resonance and within a Markovian Gorini-Kossakowski-Sudarshan-Lindblad master equation, the system forms a coherent superposition that decouples from $|H\rangle$, strongly suppressing the steady-state probe susceptibility $\operatorname{Im}\chi_{\text{CE}}$ as lower-state decoherence vanishes. A phenomenological non-Abelian correction to the hybrid energy mainly shifts and reshapes the transparency window rather than creating the interference itself. The model is not a first-principles QCD calculation of medium opacity but a controlled effective link between dark-state interference in quantum optics and reduced confined color dynamics.</abstract>
+    </arXivRaw>
+
+            </metadata>
+        </record>
+                    <record>
+                <header>
+        <identifier>oai:arXiv.org:2610.02209</identifier>
+        <datestamp>2026-10-02</datestamp>
+            <setSpec>physics:hep-th</setSpec>
+    </header>
+
+            <metadata>
+                        <arXivRaw xmlns="http://arxiv.org/OAI/arXivRaw/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://arxiv.org/OAI/arXivRaw/ https://oaipmh.arxiv.org/OAI/arXivRaw.xsd">
+        <id>2610.02209</id>
+        <submitter>Steven B. Giddings</submitter>
+            <version version="v1">
+                <date>Thu, 01 Oct 2026 17:59:58 GMT</date>
+                <size>49kb</size>
+            </version>
+        <title>Leading gravitational dressing of operators and states in de Sitter space</title>
+        <authors>Steven B. Giddings and Zi-Yue Wang</authors>
+        <categories>hep-th</categories>
+            <comments>26 pages</comments>
+            <license>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</license>
+            <abstract>We describe construction of gravitationally dressed observables in de Sitter (dS) space, to leading non-trivial order in Newton&#39;s constant. We show that for an underlying field theory observable to be &#34;gravitationally dressable,&#34; it must be dS invariant. If it satisfies this condition, its gravitational dressing can be constructed in terms of certain Green functions, by solving the condition that the dressed observable commute with the constraints. We provide a construction of the Green functions relevant for dressing observables lying on a time-symmetric slice. A simple example of a dS invariant observable is an operator creating a two-particle state of scalars. In the large mass limit, the particles are shown to be antipodally located, and the dressing of this operator (or corresponding state) can be explicitly constructed. Its behavior is diagnosed by certain correlators involving this state, and we check explicitly that these correlators then reproduce a linearized version of the Schwarzschild-dS solution. The underlying dS-invariant observables may be thought of as relational, and we argue can be generalized to include systems with properties of observers, which then could be likewise gravitationally dressed. We also briefly describe how such dressed observables can be related to alpha vacua, and discuss other questions regarding a more complete construction and role of such operators.</abstract>
+    </arXivRaw>
+
+            </metadata>
+        </record>
+
+    </ListRecords>
+</OAI-PMH>

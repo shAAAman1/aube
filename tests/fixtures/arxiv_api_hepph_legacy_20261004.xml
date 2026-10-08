@@ -1,0 +1,65 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/v3YD0pDb51KckwbsFdbBEBK4k7k</id>
+  <title>arXiv Query: search_query=cat:hep-ph AND submittedDate:"202609270156 TO 202610040215"&amp;id_list=&amp;start=0&amp;max_results=200</title>
+  <updated>2026-10-04T02:15:49Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=cat:hep-ph+AND+submittedDate:%22202609270156+TO+202610040215%22&amp;start=0&amp;max_results=200&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>200</opensearch:itemsPerPage>
+  <opensearch:totalResults>192</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2609.33151v1</id>
+    <title>Stress in static force fields and the sign of the D-term</title>
+    <updated>2026-09-27T03:25:13Z</updated>
+    <link href="https://arxiv.org/abs/2609.33151v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2609.33151v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The sign of the D-term is negative for a variety of hadrons, including the proton and pion. Speculation that this is the result of a mechanical stability condition has persisted despite counterexamples, including the positive D-term of the hydrogen atom. In this work, I explore how the sign of the D-term is influenced by the stress carried by static abelian force fields, finding the contributions from spin-even fields to be negative and the contributions from spin-odd fields (such as the electromagnetic field) to be positive. These contributions correlate with the signs of the D-terms of the fields' respective quanta. Since fields with different spin can produce identical potentials---thus resulting in equally-stable composite systems with identical wave functions---the sign of the D-term has nothing to do with stability. Since hadrons are bound by spin-one gluons, their negative D-terms appear atypical and require explanation. I briefly speculate on how color flux confinement could produce a negative hadronic D-term.</summary>
+    <category term="hep-ph" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="nucl-th" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-09-27T03:25:13Z</published>
+    <arxiv:comment>27 pages, 10 figures</arxiv:comment>
+    <arxiv:primary_category term="hep-ph"/>
+    <author>
+      <name>Adam Freese</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2609.34820v1</id>
+    <title>Emission and cooling of a newborn quark star</title>
+    <updated>2026-09-28T10:19:04Z</updated>
+    <link href="https://arxiv.org/abs/2609.34820v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2609.34820v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>It has long been believed that newborn quark stars are inefficient emitters because the quark plasma frequency is so high that it suppresses electromagnetic radiation across the entire spectrum up to energies of several tens of MeV. Here, we show that significant electromagnetic emission can instead originate from the electrosphere of a quark star, where the plasma frequency is much lower, approximately 40 keV. As a result, the cooling of a newborn quark star is expected to proceed through two distinct observational epochs. During the first epoch, blackbody radiation is emitted from the photosphere of an optically thick relativistic wind generated near the electrosphere. Over the course of a few days following the star's formation, the photospheric temperature decreases from several MeV to about 22 keV. During the second epoch, the blackbody spectrum evolves into a narrow feature centered around 40 keV, and the emission gradually fades. This spectral evolution provides a characteristic signature of the electrosphere surrounding compact astrophysical objects and may be detectable with current or future X-ray observatories.</summary>
+    <category term="astro-ph.HE" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="hep-ph" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-09-28T10:19:04Z</published>
+    <arxiv:comment>Accepted as a Letter to Physical Review D</arxiv:comment>
+    <arxiv:primary_category term="astro-ph.HE"/>
+    <author>
+      <name>Mikalai Prakapenia</name>
+    </author>
+    <author>
+      <name>Gregory Vereshchagin</name>
+    </author>
+    <arxiv:doi>10.1103/lsrj-27p1</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1103/lsrj-27p1" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2609.34937v2</id>
+    <title>Twist-4 GTMDs of sea quarks at zero skewness in the light-cone quark model</title>
+    <updated>2026-09-29T10:17:22Z</updated>
+    <link href="https://arxiv.org/abs/2609.34937v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2609.34937v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We investigate the twist-4 generalized transverse momentum dependent parton distributions (GTMDs) of $\bar{u}$ and $\bar{d}$ quarks inside the proton at zero skewness by adopting the overlap representation within the light-cone formalism. Using the light-cone wave functions of the proton derived from the baryon-meson fluctuation model in terms of the $|q\bar{q}B\rangle$ Fock states, we calculate the twist-4 GTMDs of $\bar{u}$ and $\bar{d}$ quarks. Additionally, the intricate relations between the GTMDs and the generalized parton distributions are also explored in our research. Numerical results for these twist-4 GTMDs and twist-4 GPDs at zero skewness are analyzed and presented.</summary>
+    <category term="hep-ph" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-09-28T11:32:33Z</published>
+    <arxiv:comment>typos corrected</arxiv:comment>
+    <arxiv:primary_category term="hep-ph"/>
+    <author>
+      <name>Xiaoyan Luan</name>
+    </author>
+    <author>
+      <name>Zhun Lu</name>
+    </author>
+  </entry>
+</feed>

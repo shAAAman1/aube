@@ -38,16 +38,25 @@ def test_split_id():
     assert arxiv.split_id("arXiv:2610.01234") == ("2610.01234", "")
 
 
+def _in_window(papers, a, b):
+    return sum(1 for p in papers if a <= p["updated"][:10] <= b)
+
+
 def test_pagination_complete_et_sans_doublon(env):
     cfg, web = env
-    web.papers = [paper(i, T0 - timedelta(hours=i)) for i in range(450)]  # 3 pages de 200
+    web.oai_page = 40
+    web.papers = [paper(i, T0 - timedelta(hours=i)) for i in range(450)]
     m = go(cfg, web, T0)
     assert m["status"] == "ok", m["errors"]
+    oai_fetches = [f for f in m["fetches"] if f["kind"] == "arxiv_oai" and f["key"] == "hep-th"]
+    assert len(oai_fetches) == 3                         # 96 enregistrements, pages de 40
     s = Store(cfg.data_dir)
-    assert s.db.execute("SELECT count(*) FROM items WHERE source='arxiv'").fetchone()[0] == 7 * 24 + 1
-    # second run : recouvrement de 7 jours, rien de nouveau, aucun doublon
+    n = lambda: s.db.execute("SELECT count(*) FROM items WHERE source='arxiv'").fetchone()[0]
+    # premier run : jours clos 27 → 30 septembre (hier − 3 jours de recouvrement)
+    assert n() == _in_window(web.papers, "2026-09-27", "2026-09-30") == 96
+    # second run : recouvrement, seul le 1er octobre s'ajoute, aucun doublon
     go(cfg, web, T0 + timedelta(days=1))
-    assert s.db.execute("SELECT count(*) FROM items WHERE source='arxiv'").fetchone()[0] == 7 * 24 + 1
+    assert n() == _in_window(web.papers, "2026-09-27", "2026-10-01") == 97
 
 
 def test_nouvelle_version_est_un_nouvel_element(env):
@@ -60,22 +69,38 @@ def test_nouvelle_version_est_un_nouvel_element(env):
     assert [r[0] for r in rows] == ["v1", "v2"]
 
 
-def test_page_vide_intempestive_est_rejouee(env):
+def test_remplacement_ancien_et_version_intermediaire(env):
+    """Ce que l'API ratait : la v3 d'un article de 2021, et une v2 déjà dépassée par la v3."""
     cfg, web = env
-    web.papers = [paper(i, T0 - timedelta(hours=i)) for i in range(10)]
-    url = arxiv.api_url("hep-th", T0 - timedelta(days=7), T0, 0, 200)
-    web.flaky_once.add(url)
+    old = datetime(2021, 2, 13, 7, 22, tzinfo=timezone.utc)
+    web.papers = [paper(7, old), paper(7, old + timedelta(days=30), v="v2"),
+                  paper(7, T0 - timedelta(hours=20), v="v3")]
     m = go(cfg, web, T0)
-    assert m["status"] == "ok"
-    assert Store(cfg.data_dir).db.execute("SELECT count(*) FROM items").fetchone()[0] == 10
+    assert m["status"] == "ok", m["errors"]
+    rows = Store(cfg.data_dir).db.execute(
+        "SELECT version, published, updated FROM items ORDER BY 1").fetchall()
+    assert [r[0] for r in rows] == ["v1", "v2", "v3"]
+    assert all(r[1] == "2021-02-13T07:22:00Z" for r in rows)   # date de la v1
+
+
+def test_jour_sans_annonce_et_erreur_oai(env):
+    cfg, web = env
+    web.oai_errors = {"physics:hep-ph": "badArgument"}
+    m = go(cfg, web, T0)                                  # aucun article : noRecordsMatch partout
+    errs = {(e["source"], e["key"]): e["error"] for e in m["errors"]}
+    assert list(errs) == [("arxiv", "hep-ph")]
+    assert "badArgument" in errs[("arxiv", "hep-ph")]
+    ws = {w["key"]: w for w in m["windows"] if w["source"] == "arxiv_oai"}
+    assert "hep-ph" not in ws                            # fenêtre annulée avec la source
+    assert ws["hep-th"]["received"] == 0 and ws["hep-th"]["complete"]
 
 
 def test_panne_puis_rattrapage_sans_trou(env):
     cfg, web = env
     web.papers = [paper(i, T0 - timedelta(hours=i)) for i in range(5)]
     go(cfg, web, T0)
-    web.down.add("https://export.arxiv.org")
-    # panne pendant 10 jours : plus long que le recouvrement de 7 jours
+    web.down.add("https://oaipmh.arxiv.org")
+    # panne pendant 10 jours : plus long que le recouvrement de 3 jours
     for d in range(1, 11):
         web.papers.append(paper(100 + d, T0 + timedelta(days=d, hours=-5)))
         m = go(cfg, web, T0 + timedelta(days=d))

@@ -25,12 +25,19 @@ data/
 
 | Source | Méthode | Fenêtre | Clé anti-doublon |
 |---|---|---|---|
-| arXiv | API Atom, `lastUpdatedDate`, tri ascendant | dernier succès − 7 j → maintenant | id + version |
+| arXiv | OAI-PMH `arXivRaw`, un set par catégorie, jours de datestamp | dernier succès − 3 j → hier (UTC, jours clos) | id + version |
 | arXiv (témoin) | RSS quotidien `rss.arxiv.org` | — | sert uniquement à l'audit |
-| CERN | RSS actualités | glissante (N derniers) | guid + empreinte du contenu |
-| INSPIRE | API REST, `da` (date d'ajout) | dernier succès − 3 j → hier | control_number + `updated` |
+| CERN | RSS WordPress `home.cern/feed/`, pages 1 et 2 | glissante (20 derniers) | guid + empreinte du contenu |
+| INSPIRE | API REST, `da` (= `_created`, date d'entrée dans INSPIRE) | dernier succès − 3 j → hier | control_number + `updated` |
 
-Une nouvelle version d'un preprint (v2) est un **nouvel élément**, pas un doublon.
+Une nouvelle version d'un preprint (v2) est un **nouvel élément**, pas un doublon. arXivRaw liste
+toutes les versions d'un enregistrement : chacune devient un élément, y compris une v2 déjà
+dépassée par une v3 au moment du passage.
+
+Jusqu'au 4 octobre 2026, arXiv était collecté par l'API Atom avec un filtre `lastUpdatedDate`.
+Ce filtre n'existe pas : l'API le réécrit en silence en `submittedDate`, si bien que les
+remplacements d'articles anciens et les annonces tardives manquaient alors que le total annoncé
+« collait ». Les blobs de cette période restent archivés et rejoués par l'audit.
 
 ## Critère de phase 1 et audit
 
@@ -42,21 +49,26 @@ Une nouvelle version d'un preprint (v2) est un **nouvel élément**, pas un doub
 2. **Continuité.** Les fenêtres arXiv et INSPIRE se recouvrent sans trou. Après une panne,
    la fenêtre suivante repart du dernier succès. Pour CERN, chaque lecture doit
    recouper la précédente, sinon des actualités ont pu passer entre deux runs.
-3. **Complétude.** Le nombre d'éléments reçus égale `totalResults` annoncé par l'API.
+3. **Complétude.** INSPIRE : le nombre d'identifiants distincts reçus égale le total annoncé,
+   stable pendant la pagination. arXiv (OAI-PMH) : aucun total n'est fourni ; on suit les
+   `resumptionToken` jusqu'à leur absence, et le témoin RSS sert de contrôle externe.
 4. **Témoin indépendant.** Toute annonce du RSS quotidien d'arXiv vieille de plus de
    24 h doit se trouver dans l'archive API. C'est le seul contrôle externe de la perte.
 5. **Rejouabilité.** Le rejeu des parseurs sur les blobs reproduit exactement l'index.
 6. **Doublons sémantiques.** Aucun même objet sous deux clés.
-7. **Erreurs de run.** Toute erreur bloque le critère.
+7. **Erreurs de run.** Toute erreur d'un run des 14 derniers jours bloque le critère ; les
+   plus anciennes sont affichées sans bloquer (les manifestes ne sont jamais supprimés).
 
 Le critère est **ATTEINT** quand on a 14 jours consécutifs de runs sans erreur et aucun
 problème détecté. Code de sortie : 0 si atteint, 2 sinon.
 
 ### Limites connues (à ne pas oublier)
 
-- Le témoin RSS ne couvre que les annonces quotidiennes. Une perte sur des
-  remplacements anciens hors RSS ne serait pas vue.
-- La requête INSPIRE `da >= … and da <= …` est à valider sur de vraies réponses.
+- Le témoin RSS ne couvre que les annonces quotidiennes. Il est reconstruit vers 04:00 UTC
+  et le timer passe à 00:40 UTC : chaque run lit le flux de la veille, et un run manqué ou
+  rattrapé après 04:00 UTC fait perdre une journée de témoin sans que l'audit le signale.
+- Le format d'un flux RSS rempli (guid versionné, `announce_type`) n'est que documenté :
+  à confirmer sur un vrai blob un jour ouvré.
 - CERN : le contrôle de recoupement signale une perte *possible*, pas certaine.
 
 ## Installation (Debian, Bixeon)

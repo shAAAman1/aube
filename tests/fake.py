@@ -1,34 +1,38 @@
-"""Faux serveurs arXiv / CERN / INSPIRE pour tester sans réseau.
+"""Faux serveurs arXiv (OAI-PMH, RSS) / CERN / INSPIRE pour tester sans réseau.
 
 Formats calqués sur les réponses réelles ; à confronter aux vraies réponses sur le Bixeon.
 """
 
 import json
-import re
-from datetime import datetime, timezone
+from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 from xml.sax.saxutils import escape
 
 from aube.http import FetchError, Response
 
 
-def atom(entries, total, start):
+def oai(records, token=None):
+    """records : [(id, datestamp, [(v, datetime)], cats, titre)] — format de oaipmh.arxiv.org."""
+    if not records and token is None:
+        return ('<?xml version="1.0" encoding="UTF-8"?>'
+                '<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">'
+                "<error code='noRecordsMatch'>The combination of the values of the from, until, "
+                "set and metadataPrefix arguments results in an empty list.</error></OAI-PMH>").encode()
     out = ['<?xml version="1.0" encoding="UTF-8"?>',
-           '<feed xmlns="http://www.w3.org/2005/Atom" '
-           'xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" '
-           'xmlns:arxiv="http://arxiv.org/schemas/atom">',
-           f"<opensearch:totalResults>{total}</opensearch:totalResults>",
-           f"<opensearch:startIndex>{start}</opensearch:startIndex>"]
-    for p in entries:
+           '<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/"><ListRecords>']
+    for rid, stamp, versions, cats, title in records:
         out.append(
-            f"<entry><id>http://arxiv.org/abs/{p['id']}{p['v']}</id>"
-            f"<updated>{p['updated']}</updated><published>{p['updated']}</published>"
-            f"<title>{escape(p['title'])}</title><summary>résumé</summary>"
-            f"<author><name>A. Auteur</name></author>"
-            f'<arxiv:primary_category term="{p["cats"][0]}"/>'
-            + "".join(f'<category term="{c}"/>' for c in p["cats"]) + "</entry>")
-    out.append("</feed>")
-    return "\n".join(out).encode()
+            f"<record><header><identifier>oai:arXiv.org:{rid}</identifier>"
+            f"<datestamp>{stamp}</datestamp><setSpec>physics:{cats[0]}</setSpec></header>"
+            f'<metadata><arXivRaw xmlns="http://arxiv.org/OAI/arXivRaw/"><id>{rid}</id>'
+            + "".join(f'<version version="{v}"><date>{d.strftime("%a, %d %b %Y %H:%M:%S GMT")}'
+                      f"</date><size>1kb</size></version>" for v, d in versions)
+            + f"<title>{escape(title)}</title><authors>A. Auteur</authors>"
+            f"<categories>{' '.join(cats)}</categories></arXivRaw></metadata></record>")
+    if token is not None:
+        out.append(f"<resumptionToken>{escape(token)}</resumptionToken>")
+    out.append("</ListRecords></OAI-PMH>")
+    return "".join(out).encode()
 
 
 def rss(items):
@@ -55,8 +59,9 @@ class FakeWeb:
         self.witness = {}         # cat -> [(id, v, type)]
         self.cern = []            # [(guid, title)]
         self.inspire = []         # [{'control_number', 'updated', 'title'}]
-        self.flaky_once = set()   # urls renvoyant une page vide une fois
         self.inspire_shift_after_page1 = False
+        self.oai_page = 100       # enregistrements par page OAI-PMH
+        self.oai_errors = {}      # set -> code d'erreur OAI à renvoyer
         self.down = set()         # préfixes d'URL en panne
         self.calls = []
 
@@ -66,19 +71,8 @@ class FakeWeb:
             raise FetchError(f"HTTP 503 — {url}")
         u = urlparse(url)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
-        if u.netloc == "export.arxiv.org":
-            m = re.match(r"cat:(\S+) AND lastUpdatedDate:\[(\d{12}) TO (\d{12})\]", q["search_query"])
-            cat, a, b = m.groups()
-            fmt = lambda s: datetime.strptime(s, "%Y%m%d%H%M").replace(tzinfo=timezone.utc)
-            lo, hi = fmt(a), fmt(b)
-            sel = sorted((p for p in self.papers if cat in p["cats"]
-                          and lo <= datetime.fromisoformat(p["updated"].replace("Z", "+00:00")) <= hi),
-                         key=lambda p: p["updated"])
-            start, size = int(q["start"]), int(q["max_results"])
-            if url in self.flaky_once:
-                self.flaky_once.discard(url)
-                return Response(url, 200, atom([], len(sel), start), "application/atom+xml")
-            return Response(url, 200, atom(sel[start:start + size], len(sel), start), "application/atom+xml")
+        if u.netloc == "oaipmh.arxiv.org":
+            return Response(url, 200, self._oai(q), "text/xml")
         if u.netloc == "rss.arxiv.org":
             cat = u.path.rsplit("/", 1)[-1]
             return Response(url, 200, rss(self.witness.get(cat, [])), "application/rss+xml")
@@ -99,3 +93,31 @@ class FakeWeb:
                 for r in sel]}, "links": {}}
             return Response(url, 200, json.dumps(doc).encode(), "application/json")
         raise FetchError(f"URL inattendue {url}")
+
+    def _oai(self, q):
+        """Jetons sans état (set|from|until|skip), comme oaipmh.arxiv.org."""
+        if "resumptionToken" in q:
+            set_spec, a, b, skip = q["resumptionToken"].split("|")
+            skip = int(skip)
+        else:
+            set_spec, a, b, skip = q["set"], q["from"], q["until"], 0
+        if set_spec in self.oai_errors:
+            return (f'<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">'
+                    f"<error code='{self.oai_errors[set_spec]}'>erreur</error></OAI-PMH>").encode()
+        cat = set_spec.split(":", 1)[1].replace(":", ".")
+        by_id = {}
+        for p in self.papers:
+            by_id.setdefault(p["id"], []).append(p)
+        recs = []
+        for rid, ps in by_id.items():
+            ps.sort(key=lambda p: int(p["v"][1:]))
+            when = [datetime.fromisoformat(p["updated"].replace("Z", "+00:00")) for p in ps]
+            stamp = max(when).date().isoformat()   # datestamp = dernière modification
+            if cat in ps[-1]["cats"] and a <= stamp <= b:
+                recs.append((stamp, rid, [(p["v"], w) for p, w in zip(ps, when)],
+                             ps[-1]["cats"], ps[-1]["title"]))
+        recs.sort()
+        page = recs[skip: skip + self.oai_page]
+        more = skip + self.oai_page < len(recs)
+        token = f"{set_spec}|{a}|{b}|{skip + self.oai_page}" if more else ("" if skip else None)
+        return oai([(rid, st, vs, cats, t) for st, rid, vs, cats, t in page], token)

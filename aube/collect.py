@@ -3,7 +3,7 @@
 import fcntl
 import platform
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from . import __version__, code_hash, git_state
 from .http import FetchError, Fetcher
@@ -64,31 +64,34 @@ class Run:
 
     # --- sources -------------------------------------------------------------
     def arxiv_category(self, cat: str):
+        """OAI-PMH arXivRaw par jours de datestamp clos (jusqu'à hier UTC inclus).
+
+        OAI-PMH ne donne aucun total (pas de completeListSize) : la complétude d'une fenêtre
+        repose sur le suivi des jetons jusqu'à leur absence, et sur le témoin RSS.
+        """
         c = self.cfg.section("arxiv")
-        until = self.now
-        last = self.store.last_complete_until("arxiv", cat)
-        since = (_parse_iso(last) if last else until) - timedelta(days=c["overlap_days"])
-        size, start, expected, received = c["page_size"], 0, None, 0
+        set_spec = c["sets"][cat]
+        until = (self.now - timedelta(days=1)).date()
+        last = self.store.last_complete_until("arxiv_oai", cat)
+        base = date.fromisoformat(last) if last else until
+        since = base - timedelta(days=c["overlap_days"])
+        token, received, records, tokens_seen = None, 0, 0, set()
         while True:
-            url = arxiv.api_url(cat, since, until, start, size)
-            for attempt in range(4):  # l'API renvoie parfois une page vide à tort
-                body, digest = self.fetch("arxiv_api", cat, url)
-                items, total = arxiv.parse_api(body)
-                self.sleep(c["delay_s"])
-                if items or start >= total:
-                    break
-            if expected is None:
-                expected = total
-            elif total != expected:
-                raise arxiv.ArxivError(f"total instable pendant la pagination ({expected}→{total})")
-            self.manifest["fetches"][-1]["n_items"] = len(items)
+            body, digest = self.fetch("arxiv_oai", cat, arxiv.oai_url(set_spec, since, until, token))
+            items, token, n = arxiv.parse_oai(body)
+            self.sleep(c["delay_s"])
+            self.manifest["fetches"][-1].update(n_items=len(items), n_records=n)
             self.store.add_items(items, self.run_id, digest)
             received += len(items)
-            start += size
-            if start >= total or not items:
+            records += n
+            if not token:
                 break
-        if not self.window("arxiv", cat, _iso(since), _iso(until), expected, received):
-            raise arxiv.ArxivError(f"fenêtre incomplète : {received}/{expected}")
+            if n == 0:
+                raise arxiv.ArxivError("page OAI-PMH vide suivie d'un resumptionToken")
+            if token in tokens_seen:
+                raise arxiv.ArxivError(f"resumptionToken répété : {token}")
+            tokens_seen.add(token)
+        self.window("arxiv_oai", cat, since.isoformat(), until.isoformat(), None, received)
 
     def arxiv_witness(self, cat: str):
         body, digest = self.fetch("arxiv_rss", cat, arxiv.RSS.format(cat=cat))

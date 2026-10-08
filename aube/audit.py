@@ -8,13 +8,13 @@ pour la comparer à l'index SQLite. Rien n'est cru sur parole.
 import gzip
 import json
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 
 from .sources import arxiv, cern, inspire
 from .store import Store, sha256
 
-KIND_SOURCE = {"arxiv_api": "arxiv", "arxiv_rss": "arxiv_witness",
+KIND_SOURCE = {"arxiv_api": "arxiv", "arxiv_oai": "arxiv", "arxiv_rss": "arxiv_witness",
                "cern_rss": "cern", "inspire": "inspire"}
 WITNESS_GRACE = timedelta(hours=24)
 STALE_AFTER = timedelta(hours=36)
@@ -22,6 +22,12 @@ STALE_AFTER = timedelta(hours=36)
 
 def _dt(s):
     return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+
+def _day_end(d: str) -> datetime:
+    """Fin d'un jour clos 'AAAA-MM-JJ' (UTC) : minuit du lendemain."""
+    return datetime.combine(date.fromisoformat(d) + timedelta(days=1), datetime.min.time(),
+                            tzinfo=timezone.utc)
 
 
 def _rfc822(s):
@@ -33,7 +39,9 @@ def _rfc822(s):
 
 
 def parse_fetch(kind, raw, key):
-    if kind == "arxiv_api":
+    if kind == "arxiv_oai":
+        return arxiv.parse_oai(raw)[0]
+    if kind == "arxiv_api":  # collecte abandonnée le 2026-10-04, rejouée pour l'historique
         return arxiv.parse_api(raw)[0]
     if kind == "cern_rss":
         return cern.parse_feed(raw, key)
@@ -103,27 +111,40 @@ def audit(data_dir, now=None, days=14) -> dict:
             if dates:
                 cern_newest = max([cern_newest, *dates] if cern_newest else dates)
 
-    # 2b. continuité des fenêtres arXiv / INSPIRE : aucune zone de temps non couverte
+    # 2b. continuité des fenêtres arXiv / INSPIRE : aucune zone de temps non couverte.
+    # « arxiv » = ancienne API (instants), « arxiv_oai » et « inspire » = jours clos inclus.
     for (source, key), ws in windows.items():
-        if source not in ("arxiv", "inspire"):
+        if source not in ("arxiv", "arxiv_oai", "inspire"):
             continue
         ws.sort(key=lambda w: w["since"])
         reach = ws[0]["until"]
         for w in ws[1:]:
             gap = (w["since"] > reach) if source == "arxiv" else (
-                datetime.fromisoformat(w["since"]) > datetime.fromisoformat(reach) + timedelta(days=1))
+                date.fromisoformat(w["since"]) > date.fromisoformat(reach) + timedelta(days=1))
             if gap:
                 checks["trou_de_fenetre"].append(f"{source}/{key} : rien entre {reach} et {w['since']}")
             reach = max(reach, w["until"])
-        if source == "arxiv" and now - _dt(reach) > STALE_AFTER:
-            checks["source_en_retard"].append(f"arxiv/{key} : dernière fenêtre complète {reach}")
+        # OAI-PMH rend une fenêtre (éventuellement vide) même le week-end : pas de faux retard.
+        if source == "arxiv_oai" and now - _day_end(reach) > STALE_AFTER:
+            checks["source_en_retard"].append(f"arxiv_oai/{key} : dernière fenêtre complète {reach}")
 
-    # 3. témoin indépendant : tout ce que le RSS annonce doit être dans l'archive API
-    reach_by_cat = {k: max(w["until"] for w in ws) for (s, k), ws in windows.items() if s == "arxiv"}
+    # 3. témoin indépendant : tout ce que le RSS annonce doit être dans l'archive.
+    # Un flux lu le jour J ne contient que des annonces de datestamp <= J : il est jugeable dès
+    # qu'une fenêtre OAI couvre J. Pour l'ancienne API, on gardait une marge de 24 h.
+    limit_by_cat = {}
+    for (s, k), ws in windows.items():
+        u = max(w["until"] for w in ws)
+        if s == "arxiv_oai":
+            lim = _day_end(u) - timedelta(microseconds=1)
+        elif s == "arxiv":
+            lim = _dt(u) - WITNESS_GRACE
+        else:
+            continue
+        limit_by_cat[k] = max(lim, limit_by_cat.get(k, lim))
     witness_checked = 0
     for fetched_at, cat, item_id, version, atype in witness:
-        r = reach_by_cat.get(cat)
-        if r is None or _dt(fetched_at) > _dt(r) - WITNESS_GRACE:
+        lim = limit_by_cat.get(cat)
+        if lim is None or _dt(fetched_at) > lim:
             continue  # trop récent pour juger
         witness_checked += 1
         if ("arxiv", item_id, version) not in replay:

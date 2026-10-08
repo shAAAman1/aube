@@ -2,7 +2,9 @@
 Description=Aube — déclenche la collecte chaque nuit
 
 [Timer]
-# arXiv publie vers 20:00 heure de New York, soit ~02:00 à Paris.
+# arXiv annonce à 20:00 heure de New York (00:00 UTC en été, 01:00 UTC en hiver) : à 02:40
+# Paris, la journée UTC d'hier est close pour OAI-PMH. Le RSS témoin n'est reconstruit que
+# vers 04:00/05:00 UTC : le run lit donc le flux de la veille (voir README, limites).
 OnCalendar=*-*-* 02:40:00 Europe/Paris
 Persistent=true
 

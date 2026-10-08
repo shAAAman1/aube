@@ -13,10 +13,14 @@ retries = 4
 
 [arxiv]
 categories = ["hep-ex", "hep-ph", "hep-th", "cond-mat.supr-con"]
-# Recouvrement des fenêtres : couvre les week-ends et les retards d'annonce.
-# Les doublons induits sont absorbés par l'index (clé id+version).
-overlap_days = 7
-page_size = 200
+# Collecte par OAI-PMH (https://oaipmh.arxiv.org/oai, arXivRaw) : l'API Atom ne sait pas
+# filtrer par date de mise à jour (voir aube/sources/arxiv.py). Sets vérifiés par ListSets
+# le 2026-10-04 ; chaque set inclut les cross-lists.
+sets = { "hep-ex" = "physics:hep-ex", "hep-ph" = "physics:hep-ph", "hep-th" = "physics:hep-th", "cond-mat.supr-con" = "physics:cond-mat:supr-con" }
+# Fenêtre : jours de datestamp clos, de (dernier succès − overlap_days) à hier UTC inclus.
+# Le recouvrement rattrape un enregistrement qui aurait glissé pendant la pagination
+# (jetons sans état : from + skip). Doublons absorbés par l'index (clé id+version).
+overlap_days = 3
 delay_s = 3.5            # arXiv demande >= 3 s entre requêtes
 
 [arxiv_witness]
