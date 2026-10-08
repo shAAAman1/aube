@@ -37,6 +37,7 @@ def parse_page(raw: bytes) -> tuple[list[Item], int, str | None]:
         items.append(Item(
             source="inspire", item_id=cn, version=str(h.get("updated", "")),
             title=" ".join((titles[0].get("title") or "").split()),
+            # published = date d'ENTRÉE dans INSPIRE (celle que filtre `da`), pas de publication.
             published=str(h.get("created", "")), updated=str(h.get("updated", "")),
             meta={
                 "arxiv": [x.get("value") for x in m.get("arxiv_eprints", []) if x.get("value")],

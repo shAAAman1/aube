@@ -1,0 +1,415 @@
+{
+ "hits": {
+  "hits": [
+   {
+    "metadata": {
+     "authors": [
+      {
+       "full_name": "Bharti, Kishor"
+      }
+     ],
+     "citation_count": 0,
+     "references": [
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2978210"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2948971"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2933115"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/466430"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/158639"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2748106"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2997354"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2703355"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2733148"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2743821"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2728468"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2728280"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2731086"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2731986"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2735650"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/54978"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2953380"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/850742"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/554564"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/1308434"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/1784320"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2699193"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/3025785"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/3032309"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/3042696"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/3026166"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/813791"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2701194"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2734415"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/1842927"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2949704"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2808113"
+       }
+      }
+     ],
+     "inspire_categories": [
+      {
+       "term": "Quantum Physics",
+       "source": "arxiv"
+      },
+      {
+       "term": "Computing",
+       "source": "arxiv"
+      }
+     ],
+     "abstracts": [
+      {
+       "value": "The equalities IP = PSPACE and QIP = PSPACE, the latter achievable with three messages, raise a basic question: how much of an interactive proof's power comes from the underlying physical theory? We study interactive proofs in general probabilistic theories, which include classical and quantum theory. The answer depends on what the prover and verifier exchange and how the theory specifies efficient operations. When they exchange only classical messages, protocols in every theory satisfying our standard assumptions decide exactly PSPACE. For protocols with a quantum verifier and quantum messages, allowing a prover to use any theory containing quantum theory does not increase the maximum acceptance probability. Thus, the three-message PSPACE result remains valid against such provers. When messages may be arbitrary systems, the interactive-proof class can strictly exceed PSPACE."
+      }
+     ],
+     "control_number": 3210329,
+     "titles": [
+      {
+       "title": "Beyond IP = PSPACE and QIP = PSPACE: Interactive Proofs in Arbitrary Physical Theories"
+      }
+     ],
+     "arxiv_eprints": [
+      {
+       "categories": [
+        "quant-ph",
+        "cs.CC"
+       ],
+       "value": "2610.00847"
+      }
+     ],
+     "earliest_date": "2026-10-01",
+     "document_type": [
+      "article"
+     ]
+    },
+    "links": {
+     "bibtex": "https://inspirehep.net/api/literature/3210329?format=bibtex",
+     "latex-eu": "https://inspirehep.net/api/literature/3210329?format=latex-eu",
+     "latex-us": "https://inspirehep.net/api/literature/3210329?format=latex-us",
+     "json": "https://inspirehep.net/api/literature/3210329?format=json",
+     "json-expanded": "https://inspirehep.net/api/literature/3210329?format=json-expanded",
+     "cv": "https://inspirehep.net/api/literature/3210329?format=cv",
+     "citations": "https://inspirehep.net/api/literature/?q=refersto%3Arecid%3A3210329"
+    },
+    "id": "3210329",
+    "created": "2026-10-02T03:30:19.463176+00:00",
+    "updated": "2026-10-03T02:22:36.301957+00:00"
+   },
+   {
+    "metadata": {
+     "authors": [
+      {
+       "full_name": "Vekemans, Annelien"
+      }
+     ],
+     "citation_count": 0,
+     "publication_info": [
+      {
+       "year": 2026
+      }
+     ],
+     "inspire_categories": [
+      {
+       "term": "Theory-HEP",
+       "source": "curator"
+      }
+     ],
+     "abstracts": [
+      {
+       "value": "Black holes pose a lot of unsolved problems surrounding their fundamental properties. One of those puzzles is the black hole entropy problem. It has been known for a long time that black holes behave as thermodynamic systems and possess an entropy, but the question remains which microstates are responsible for this entropy. A theory of quantum gravity is needed to tackle this problem, currently the most viable example of which is string theory. The work of Strominger and Vafa, where they studied a class of asymptotically flat black holes, proves that string theory is indeed rich enough to account for the microstates responsible for the Bekenstein-Hawking entropy. Recently, the focus has shifted to asymptotically AdS black holes after the discovery of the AdS/CFT correspondence.Holographic dualities, the first example of which was discovered by Maldacena, have proven to be highly successful in providing a microstate counting for the entropy of black holes. The black hole is constructed on the gravity side of the correspondence, and the dual field theory counts its states. In this thesis we study black holes in AdS5 and their dual 4d N=1 SCFTs. The general procedure can be summarized as follows. On the field theory side, supersymmetric states are counted using the superconformal index. From the index we can obtain the entropy via a Legendre transform. By requiring that the entropy is real, we obtain a prediction for the existence of a dual black hole with that same entropy. In the dual supergravity theory we look for such solutions and compute the Euclidean on-shell action to match to the index, and the horizon area to match to the CFT entropy.This procedure was successfully applied to the minimal sector of any AdS5/CFT4 duality by Cabo-Bizet, Cassani, Martelli and Murthy, to leading order in the large N expansion. Here we aim to move beyond these results by adding flavour symmetries to the problem and by going beyond leading order at large N. On the field theory side of the duality, we study the index and entropy of flavoured SCFTs. We observe that for some theories, the simple procedure for taking the Legendre transform in the literature can no longer be applied. In all previously known examples, the index satisfies a cubic identity which leads to a simple way of deriving the entropy. We show that this identity no longer holds for certain theories but can be replaced by a sixth order identity, resulting in a different, more complicated expression for the entropy. These results suggest the existence of a new class of dual black hole solutions to match this entropy with their horizon area.We then proceed to finding these new solutions. This is a highly nontrivial problem because the dual supergravity theories contain hypermultiplet scalars. We specifically choose to work in the duality derived from M5-branes wrapping around a Riemann surface, between a family of non-Lagrangian class S SCFTs and a set of N=2 supergravities with two vector multiplets and one hypermultiplet, both parametrized by a rational number z. For z=&plusmn;1, the cubic identity is satisfied and the entropy takes the familiar, simple form. Here we can easily identify the dual black holes through a relation to the five-dimensional STU model. For other values of z, we need the sixth order identity and we must include the hypermultiplet scalars in the black hole solution. To simplify the problem, we look for the near-horizon extremal geometry and restrict to two equal angular momenta. We start from the known solution for z=1 and perform an expansion around this point. We find an analytical solution to first order in the expansion. Since we only solve in the near-horizon region, we lose access to the on-shell action and chemical potentials but can still compute the charges and the entropy. The entropy through the area law matches precisely with the field theory prediction. We therefore prove that these partial solutions are the first step towards identifying the new class of black hole solutions with non-zero hypermultiplet scalars.In the final part of this thesis we move beyond the leading order at large N and add higher-derivative corrections. We focus on the universal case where only the R-symmetry is turned on. In this case, the higher-derivative action including four derivatives can be fully determined up to two constants, which can be related to the conformal anomalies of the dual field theory using the holographic map. We then set out to confirm the first subleading corrections to the index and entropy from the gravity side of the duality. We argue that the corrections to the black hole solution are not needed for the Euclidean on-shell action. It suffices to substitute the leading order solution in the corrected action. We perform this calculation carefully and obtain a precise match with the superconformal index. For the entropy, the corrections to the solution are needed. Here we opt to compute the entropy from the quantum statistical relation and the first law. Finally, we comment on higher-derivative corrections to flavoured theories."
+      }
+     ],
+     "control_number": 3209432,
+     "titles": [
+      {
+       "title": "Holography and the Quantum Nature of Black Holes"
+      }
+     ],
+     "earliest_date": "2026-10-14",
+     "document_type": [
+      "thesis"
+     ]
+    },
+    "links": {
+     "bibtex": "https://inspirehep.net/api/literature/3209432?format=bibtex",
+     "latex-eu": "https://inspirehep.net/api/literature/3209432?format=latex-eu",
+     "latex-us": "https://inspirehep.net/api/literature/3209432?format=latex-us",
+     "json": "https://inspirehep.net/api/literature/3209432?format=json",
+     "json-expanded": "https://inspirehep.net/api/literature/3209432?format=json-expanded",
+     "cv": "https://inspirehep.net/api/literature/3209432?format=cv",
+     "citations": "https://inspirehep.net/api/literature/?q=refersto%3Arecid%3A3209432"
+    },
+    "id": "3209432",
+    "created": "2026-09-30T15:33:49.452593+00:00",
+    "updated": "2026-09-30T15:33:49.583440+00:00"
+   },
+   {
+    "metadata": {
+     "authors": [
+      {
+       "full_name": "Lincoln, Don"
+      }
+     ],
+     "citation_count": 0,
+     "publication_info": [
+      {
+       "journal_volume": "64",
+       "page_end": "581",
+       "year": 2026,
+       "journal_record": {
+        "$ref": "https://inspirehep.net/api/journals/1214512"
+       },
+       "journal_issue": "7",
+       "page_start": "578",
+       "journal_title": "Phys.Teacher"
+      }
+     ],
+     "references": [
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/11883"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/12292"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/4328"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/51188"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2817040"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/1124337"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/1124338"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/21796"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/598778"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/1189052"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/1241575"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/1327726"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2104706"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2104706"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2104672"
+       }
+      },
+      {
+       "record": {
+        "$ref": "https://inspirehep.net/api/literature/2104672"
+       }
+      }
+     ],
+     "inspire_categories": [
+      {
+       "term": "General Physics"
+      }
+     ],
+     "control_number": 3209397,
+     "titles": [
+      {
+       "title": "Did We Find the Real Higgs Boson?"
+      }
+     ],
+     "earliest_date": "2026-10-01",
+     "document_type": [
+      "article"
+     ]
+    },
+    "links": {
+     "bibtex": "https://inspirehep.net/api/literature/3209397?format=bibtex",
+     "latex-eu": "https://inspirehep.net/api/literature/3209397?format=latex-eu",
+     "latex-us": "https://inspirehep.net/api/literature/3209397?format=latex-us",
+     "json": "https://inspirehep.net/api/literature/3209397?format=json",
+     "json-expanded": "https://inspirehep.net/api/literature/3209397?format=json-expanded",
+     "cv": "https://inspirehep.net/api/literature/3209397?format=cv",
+     "citations": "https://inspirehep.net/api/literature/?q=refersto%3Arecid%3A3209397"
+    },
+    "id": "3209397",
+    "created": "2026-09-30T14:28:18.069908+00:00",
+    "updated": "2026-09-30T19:48:04.894733+00:00"
+   }
+  ],
+  "total": 1480
+ },
+ "links": {
+  "self": "https://inspirehep.net/api/literature/?sort=mostrecent&q=da%20%3E%3D%202026-09-30%20and%20da%20%3C%3D%202026-10-03&size=250&page=1&fields=control_number,titles.title,abstracts.value,arxiv_eprints,authors.full_name,inspire_categories,document_type,publication_info,citation_count,references.record,created,updated,earliest_date",
+  "next": "https://inspirehep.net/api/literature/?sort=mostrecent&q=da%20%3E%3D%202026-09-30%20and%20da%20%3C%3D%202026-10-03&size=250&page=2&fields=control_number,titles.title,abstracts.value,arxiv_eprints,authors.full_name,inspire_categories,document_type,publication_info,citation_count,references.record,created,updated,earliest_date",
+  "bibtex": "https://inspirehep.net/api/literature/?sort=mostrecent&q=da%20%3E%3D%202026-09-30%20and%20da%20%3C%3D%202026-10-03&size=250&page=1&format=bibtex",
+  "latex-eu": "https://inspirehep.net/api/literature/?sort=mostrecent&q=da%20%3E%3D%202026-09-30%20and%20da%20%3C%3D%202026-10-03&size=250&page=1&format=latex-eu",
+  "latex-us": "https://inspirehep.net/api/literature/?sort=mostrecent&q=da%20%3E%3D%202026-09-30%20and%20da%20%3C%3D%202026-10-03&size=250&page=1&format=latex-us",
+  "json": "https://inspirehep.net/api/literature/?sort=mostrecent&q=da%20%3E%3D%202026-09-30%20and%20da%20%3C%3D%202026-10-03&size=250&page=1&fields=control_number,titles.title,abstracts.value,arxiv_eprints,authors.full_name,inspire_categories,document_type,publication_info,citation_count,references.record,created,updated,earliest_date&format=json",
+  "json-expanded": "https://inspirehep.net/api/literature/?sort=mostrecent&q=da%20%3E%3D%202026-09-30%20and%20da%20%3C%3D%202026-10-03&size=250&page=1&format=json-expanded",
+  "cv": "https://inspirehep.net/api/literature/?sort=mostrecent&q=da%20%3E%3D%202026-09-30%20and%20da%20%3C%3D%202026-10-03&size=250&page=1&format=cv"
+ }
+}

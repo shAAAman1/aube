@@ -56,6 +56,7 @@ class FakeWeb:
         self.cern = []            # [(guid, title)]
         self.inspire = []         # [{'control_number', 'updated', 'title'}]
         self.flaky_once = set()   # urls renvoyant une page vide une fois
+        self.inspire_shift_after_page1 = False
         self.down = set()         # préfixes d'URL en panne
         self.calls = []
 
@@ -87,6 +88,10 @@ class FakeWeb:
                             "application/rss+xml")
         if u.netloc == "inspirehep.net":
             size, page = int(q["size"]), int(q["page"])
+            if self.inspire_shift_after_page1 and page > 1:
+                # un enregistrement de la page 1 est modifié et glisse en page 2
+                self.inspire.insert(size, self.inspire.pop(0))
+                self.inspire_shift_after_page1 = False
             sel = self.inspire[(page - 1) * size: page * size]
             doc = {"hits": {"total": len(self.inspire), "hits": [
                 {"id": r["control_number"], "created": r["updated"], "updated": r["updated"],

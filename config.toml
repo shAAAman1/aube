@@ -36,8 +36,14 @@ feeds = ["https://home.cern/feed/", "https://home.cern/feed/?paged=2"]
 enabled = true
 # {since} et {until} sont remplacés par des dates AAAA-MM-JJ (UTC).
 # until = hier : la fenêtre est close, son total ne bouge plus pendant la pagination.
+# `da` = date-added = _created (date d'entrée dans INSPIRE, pas de publication), jours entiers
+# bornes incluses (vérifié le 2026-10-04 : `da 2026-10-01` = 524 = les `created` du 1er dans
+# les blobs). `date-added` en toutes lettres renvoie HTTP 400 ; `du` (date de mise à jour)
+# ramène les anciens enregistrements modifiés (4930 contre 1480 sur la même fenêtre).
 query = "da >= {since} and da <= {until}"
 overlap_days = 3
 page_size = 250
 delay_s = 1.0
-fields = "control_number,titles.title,abstracts.value,arxiv_eprints,authors.full_name,inspire_categories,document_type,publication_info,citation_count,references.record,created,updated"
+fields = "control_number,titles.title,abstracts.value,arxiv_eprints,authors.full_name,inspire_categories,document_type,publication_info,citation_count,references.record,created,updated,earliest_date"
+# earliest_date : clé du tri « mostrecent » (-earliest_date, control_number), archivée pour
+# pouvoir vérifier l'ordre de pagination a posteriori.

@@ -167,6 +167,19 @@ def test_cern_billet_re_date_ne_masque_pas_un_trou(env):
     assert any("postérieur" in x for x in rep["problemes"].get("cern_trou_possible", []))
 
 
+def test_inspire_pagination_decalee_detectee(env):
+    """Un enregistrement qui glisse d'une page à l'autre : doublon + saut, même nombre reçu."""
+    cfg, web = env
+    web.inspire = [{"control_number": i, "updated": "2026-09-30T10:00:00", "title": "x"}
+                   for i in range(1, 301)]  # 2 pages de 250
+    web.inspire_shift_after_page1 = True
+    m = go(cfg, web, T0)
+    errs = [e["error"] for e in m["errors"] if e["source"] == "inspire"]
+    assert errs and "pagination décalée" in errs[0], m["errors"]
+    s = Store(cfg.data_dir)
+    assert s.db.execute("SELECT count(*) FROM items WHERE source='inspire'").fetchone()[0] == 0
+
+
 def test_archive_deterministe(env, tmp_path):
     """Mêmes réponses, même moment → blobs octet pour octet identiques."""
     cfg, web = env

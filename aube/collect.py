@@ -113,7 +113,7 @@ class Run:
         last = self.store.last_complete_until("inspire", "literature")
         base = datetime.fromisoformat(last).date() if last else until
         since = base - timedelta(days=c["overlap_days"])
-        page, expected, received = 1, None, 0
+        page, expected, n, seen = 1, None, 0, set()
         while True:
             url = inspire.api_url(c["query"], since, until, c["page_size"], c["fields"], page)
             body, digest = self.fetch("inspire", "literature", url)
@@ -123,15 +123,22 @@ class Run:
                 expected = total
                 if total > inspire.MAX_DEPTH:
                     raise inspire.InspireError(f"{total} résultats > {inspire.MAX_DEPTH} : réduire la fenêtre")
+            elif total != expected:
+                raise inspire.InspireError(f"total instable pendant la pagination ({expected}→{total})")
             self.manifest["fetches"][-1]["n_items"] = len(items)
             self.store.add_items(items, self.run_id, digest)
-            received += len(items)
-            if not items or received >= expected:
+            n += len(items)
+            seen |= {it.item_id for it in items}
+            if not items or n >= expected:
                 break
             page += 1
+        # Pagination page/size sans instantané : un enregistrement modifié pendant le run peut
+        # glisser d'une page à l'autre (doublon + saut). On compte donc les identifiants distincts.
+        if len(seen) != n:
+            raise inspire.InspireError(f"pagination décalée : {n} reçus, {len(seen)} distincts")
         if not self.window("inspire", "literature", since.isoformat(), until.isoformat(),
-                           expected, received):
-            raise inspire.InspireError(f"fenêtre incomplète : {received}/{expected}")
+                           expected, len(seen)):
+            raise inspire.InspireError(f"fenêtre incomplète : {len(seen)}/{expected}")
 
     # --- orchestration ---------------------------------------------------------
     def execute(self) -> dict:
