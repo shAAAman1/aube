@@ -36,7 +36,9 @@ def parse_feed(raw: bytes, feed_url: str) -> list[Item]:
         if not guid:
             continue
         # Version = empreinte du contenu : une correction éditoriale devient une révision
-        # visible plutôt qu'un écrasement silencieux.
+        # visible plutôt qu'un écrasement silencieux. Ne jamais y inclure content:encoded :
+        # sur home.cern il contient un bloc calendrier (data-wp-context stringDate) qui
+        # varie d'une lecture à l'autre (constaté le 2026-10-04), d'où de fausses révisions.
         version = hashlib.sha256("\x1f".join([title, link, date, body]).encode()).hexdigest()[:16]
         items.append(Item(source="cern", item_id=guid, version=version, title=title,
                           published=date, updated=date,

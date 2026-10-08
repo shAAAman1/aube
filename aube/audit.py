@@ -9,6 +9,7 @@ import gzip
 import json
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 
 from .sources import arxiv, cern, inspire
 from .store import Store, sha256
@@ -21,6 +22,14 @@ STALE_AFTER = timedelta(hours=36)
 
 def _dt(s):
     return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+
+def _rfc822(s):
+    try:
+        d = parsedate_to_datetime(s)
+    except (TypeError, ValueError):
+        return None
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
 
 
 def parse_fetch(kind, raw, key):
@@ -39,7 +48,7 @@ def audit(data_dir, now=None, days=14) -> dict:
     manifests = sorted(store.manifests.glob("*.json"))
     checks = defaultdict(list)          # nom -> liste de problèmes
     replay = set()                      # (source, item_id, version)
-    cern_seen = set()
+    cern_seen, cern_newest = set(), None
     witness = []                        # (fetched_at, cat, id, version, atype)
     windows = defaultdict(list)
     runs = []
@@ -47,6 +56,7 @@ def audit(data_dir, now=None, days=14) -> dict:
     for mpath in manifests:
         m = json.loads(mpath.read_bytes())
         runs.append(m)
+        cern_run = []                   # éléments CERN de ce run, toutes pages confondues
         failed = {(e["source"], e["key"]) for e in m.get("errors", [])}
         for w in m.get("windows", []):
             if w["complete"] and (w["source"], w["key"]) not in failed:
@@ -70,15 +80,28 @@ def audit(data_dir, now=None, days=14) -> dict:
                 continue
             items = parse_fetch(f["kind"], raw, f["key"])
             if f["kind"] == "cern_rss":
-                # 2a. continuité d'un flux à fenêtre glissante : au moins un élément déjà vu
-                ids = {it.item_id for it in items}
-                if cern_seen and ids and not (ids & cern_seen):
-                    checks["cern_trou_possible"].append(
-                        f"{m['run_id']} : aucun élément commun avec les runs précédents")
-                cern_seen |= ids
+                cern_run += items
             if (source, f["key"]) in failed:
                 continue  # le run a annulé l'indexation de cette source
             replay |= {(it.source, it.item_id, it.version) for it in items}
+
+        # 2a. continuité d'un flux à fenêtre glissante, jugée sur l'union des pages du run :
+        # il faut un élément déjà vu ET que le plus ancien élément lu ne soit pas plus récent
+        # que tout ce qu'on avait déjà (un vieux billet re-daté fournirait sinon un faux
+        # point commun et masquerait le trou).
+        if cern_run:
+            ids = {it.item_id for it in cern_run}
+            dates = [d for d in (_rfc822(it.published) for it in cern_run) if d]
+            if cern_seen and not (ids & cern_seen):
+                checks["cern_trou_possible"].append(
+                    f"{m['run_id']} : aucun élément commun avec les runs précédents")
+            elif cern_newest and dates and min(dates) > cern_newest:
+                checks["cern_trou_possible"].append(
+                    f"{m['run_id']} : élément le plus ancien {min(dates):%Y-%m-%d %H:%M} postérieur "
+                    f"à tout ce qui avait été vu ({cern_newest:%Y-%m-%d %H:%M})")
+            cern_seen |= ids
+            if dates:
+                cern_newest = max([cern_newest, *dates] if cern_newest else dates)
 
     # 2b. continuité des fenêtres arXiv / INSPIRE : aucune zone de temps non couverte
     for (source, key), ws in windows.items():

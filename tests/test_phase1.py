@@ -141,6 +141,32 @@ def test_cern_trou_detecte(env):
     assert "cern_trou_possible" in rep["problemes"]
 
 
+def test_cern_deux_pages_pas_de_faux_trou(env):
+    """15 actus entre deux runs : la page 1 seule ne recoupe rien, l'union des 2 pages si."""
+    cfg, web = env
+    old = [(f"o{i}", f"O{i}") for i in range(20)]
+    web.cern = old
+    go(cfg, web, T0)
+    web.cern = [(f"n{i}", f"N{i}") for i in range(15)] + old
+    go(cfg, web, T0 + timedelta(days=1))
+    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=1))
+    assert "cern_trou_possible" not in rep["problemes"]
+
+
+def test_cern_billet_re_date_ne_masque_pas_un_trou(env):
+    """Un vieux billet re-daté (ex. « Upcoming events ») recoupe toujours : la date le démasque."""
+    cfg, web = env
+    d = lambda day: f"{day:02d} Sep 2026 10:00:00 +0000"
+    web.cern = [("ev", "Upcoming events", "Mon, " + d(1))] + [(f"a{i}", "A", "Mon, " + d(1)) for i in range(5)]
+    go(cfg, web, T0)
+    # 25 actus parues depuis (plus que 2 pages), et « ev » re-daté en tête de flux
+    web.cern = [("ev", "Upcoming events", "Tue, " + d(29))] + \
+               [(f"b{i}", "B", "Mon, " + d(28 - i % 20)) for i in range(25)]
+    go(cfg, web, T0 + timedelta(days=1))
+    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=1))
+    assert any("postérieur" in x for x in rep["problemes"].get("cern_trou_possible", []))
+
+
 def test_archive_deterministe(env, tmp_path):
     """Mêmes réponses, même moment → blobs octet pour octet identiques."""
     cfg, web = env

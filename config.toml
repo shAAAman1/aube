@@ -25,7 +25,12 @@ delay_s = 3.5            # arXiv demande >= 3 s entre requêtes
 enabled = true
 
 [cern]
-feeds = ["https://home.cern/api/news/news/feed.rss"]
+# Flux WordPress de home.cern (annoncé par <link rel="alternate"> sur https://home.cern/news).
+# L'ancienne URL /api/news/news/feed.rss renvoie 404 (constaté le 2026-10-04).
+# 10 items par page ; jusqu'à 7 items entre deux runs observés sur 3 semaines : la page 2
+# donne de la marge si un run saute. Ne pas ajouter /fr/feed/ : les traductions ont
+# d'autres guid et d'autres liens, elles seraient comptées deux fois.
+feeds = ["https://home.cern/feed/", "https://home.cern/feed/?paged=2"]
 
 [inspire]
 enabled = true

@@ -41,9 +41,11 @@ def rss(items):
 
 
 def cern_rss(items):
+    """items : [(guid, titre)] ou [(guid, titre, pubDate)], du plus récent au plus ancien."""
+    items = [(*it, "Sat, 03 Oct 2026 10:00:00 +0200")[:3] for it in items]
     body = "".join(f"<item><title>{t}</title><link>https://home.cern/news/{g}</link>"
-                   f"<guid>{g}</guid><pubDate>Sat, 03 Oct 2026 10:00:00 +0200</pubDate>"
-                   f"<description>&lt;p&gt;texte&lt;/p&gt;</description></item>" for g, t in items)
+                   f"<guid>{g}</guid><pubDate>{d}</pubDate>"
+                   f"<description>&lt;p&gt;texte&lt;/p&gt;</description></item>" for g, t, d in items)
     return f'<?xml version="1.0"?><rss version="2.0"><channel>{body}</channel></rss>'.encode()
 
 
@@ -79,8 +81,10 @@ class FakeWeb:
         if u.netloc == "rss.arxiv.org":
             cat = u.path.rsplit("/", 1)[-1]
             return Response(url, 200, rss(self.witness.get(cat, [])), "application/rss+xml")
-        if u.netloc == "home.cern":
-            return Response(url, 200, cern_rss(self.cern), "application/rss+xml")
+        if u.netloc == "home.cern":  # WordPress : 10 items par page, ?paged=N
+            page = int(q.get("paged", 1))
+            return Response(url, 200, cern_rss(self.cern[(page - 1) * 10: page * 10]),
+                            "application/rss+xml")
         if u.netloc == "inspirehep.net":
             size, page = int(q["size"]), int(q["page"])
             sel = self.inspire[(page - 1) * size: page * size]
