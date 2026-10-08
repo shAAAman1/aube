@@ -212,3 +212,72 @@ Nouveaux blobs (gzip) par run avec la configuration actuelle (runs 0246Z et 0303
 Projection naïve : environ 0,7 Go par an. **Ce n'est pas encore une croissance quotidienne
 mesurée** : tous les runs datent du même dimanche. À remesurer après 7 runs quotidiens, en
 semaine.
+
+## 2026-10-08 — Récupération du travail du 4 octobre, principe de référence, premier run depuis 4 jours
+
+### Incident : quatre fichiers écrasés le 5 octobre à 01:21
+- Constat : `aube/audit.py`, `aube/__main__.py`, `tests/test_phase1.py` et `README.md` étaient
+  revenus à leur version d'avant la session du 4 octobre, plus un correctif « référence »
+  (`aube/ref.py`, contrôle `reference_irresoluble`, commande `ref`, 2 tests). Les autres fichiers
+  (collect, parseurs, http, config, systemd) avaient bien l'état final du 4 octobre.
+  Effet : 8 tests sur 27 en échec, `python -m aube audit` plantait sur `KeyError: 'arxiv_oai'`
+  dès le run 0246Z. Le dépôt n'a toujours aucun commit, donc aucun historique à consulter.
+- Récupération : l'état final du 4 octobre survivait dans un arbre git orphelin
+  (`7027cba0`, écrit par la session du 4 octobre pour préparer les patches). Preuve que cet
+  arbre est le bon : les 13 patches de `~/aube-commits/`, rejoués sur l'index, donnent
+  exactement l'arbre `7027cba0`. Les 4 fichiers ont été restaurés depuis cet arbre par le
+  propriétaire (`git cat-file -p <blob> > fichier`), puis le correctif référence a été
+  réappliqué par-dessus. Les versions écrasées restent dans l'index git et dans le
+  correctif extrait (`14-reference.patch`).
+- Leçon : des objets orphelins sont supprimés par `git gc` après deux semaines. Tant que le
+  commit initial signé n'est pas fait, le travail n'est protégé par rien. **Faire les commits.**
+
+### Principe de référence (patch 14)
+- `aube/ref.py` résout élément → source publique → blob SHA256 (re-parsé, doit contenir
+  l'élément) → manifeste (URL, date, commit, hash du code). `python -m aube ref arxiv:<id>v<n>`
+  sort 1 si un maillon casse.
+- L'audit contrôle chaque ligne de l'index (`reference_irresoluble`).
+- Tests : `test_reference_resolue_jusqu_au_blob`, `test_reference_falsifiee_detectee`.
+  Total : 48 tests, tous verts, y compris sur l'état rejoué des 14 patches.
+- Vérifié en réel : `ref arxiv:1205.5754v1` (élément du run 0016Z) se résout jusqu'à l'URL
+  OAI du 2026-10-06, `commit: null` puisqu'il n'y a pas encore de commit.
+
+### Run réel 20261008T0016Z (manuel, le timer n'est pas installé)
+- 48 requêtes OK, 0 erreur, 3 min 14 s (00:16:24 → 00:19:37 UTC). Fenêtres : arXiv OAI et
+  INSPIRE du 2026-09-30 au 2026-10-07 (dernier succès 10-03 − 3 j de recouvrement), CERN 2 pages.
+- Reçus : hep-ex 338, hep-ph 801, hep-th 1033, cond-mat.supr-con 131 versions ; INSPIRE 2487
+  en 10 pages. Index : arxiv 1001 → 2007, cern 20 → 23, inspire 1480 → 2707.
+- Aucun jour n'a dépassé une page OAI (32 requêtes = 8 jours × 4 sets, pas de seconde passe).
+- Audit après le run : seul problème, les 2 erreurs 404 CERN du 4 octobre, bloquantes
+  jusqu'au 2026-10-17 inclus. Pas de `trou_de_fenetre`, pas d'`index_non_rejouable`, pas de
+  `reference_irresoluble` sur 4737 éléments. Témoins vérifiés : 0, attendu (le témoin lu le
+  jour J n'est jugé que quand l'OAI couvre J+1).
+- Disque : 48 nouveaux blobs, 3,67 Mo gz (INSPIRE 2,58 Mo, arXiv OAI 0,92 Mo, RSS 0,13 Mo,
+  CERN 0,04 Mo). `data/` : 12,35 → 17,25 Mo. Ce run couvrait 8 jours ; la croissance
+  quotidienne reste à mesurer sur des runs quotidiens.
+- Les 4 jours sans run (4 → 7 octobre) n'ont rien perdu côté arXiv OAI et INSPIRE (fenêtres
+  reprises au dernier succès). Côté CERN, 3 nouveaux éléments et recoupement OK, mais un trou
+  CERN sur une absence plus longue ne se rattrape pas : c'est la raison d'installer le timer.
+
+### Décisions en attente du propriétaire
+- Installer et activer le timer (`systemctl --user enable --now`, plus `loginctl enable-linger`
+  pour qu'il tourne sans session ouverte). Le plan du 5 octobre (veille générique, V-Dem,
+  AGPL, code en anglais) disait « avant d'activer le timer » ; CLAUDE.md dit phase 1 physique
+  sans licence. Tant que ce n'est pas tranché, les 14 jours ne commencent pas.
+- Faire le commit initial signé puis `sh ~/aube-commits/apply.sh` (14 étapes, tests à chaque
+  étape).
+
+### Timer activé, premier run automatique
+- 15 commits signés (clé FIDO, `git log --format=%G?` : tous `G`) : l'arbre T13 et le patch 14
+  sont désormais protégés par l'historique. `user.email` du dépôt réglé sur l'adresse de
+  `allowed_signers`.
+- Unités copiées dans `~/.config/systemd/user/`, `enable --now` à 02:36 CEST, `Linger=yes`
+  était déjà actif.
+- Run `20261008T0040Z` lancé par le timer à 02:40:02 CEST : 27 requêtes OK, 0 erreur, 1 min 30 s,
+  38 Mo de mémoire au pic. Le manifeste porte enfin un commit (`e6e7057`, `dirty: false`).
+  Rien de neuf dans l'index, attendu : la fenêtre (10-05 → 10-07) venait d'être moissonnée
+  par le run manuel 0016Z.
+- Audit inchangé : seules les deux 404 CERN du 4 octobre bloquent. Si les runs quotidiens
+  restent propres, la fenêtre de 14 jours les laissera sortir le 18 octobre et le critère peut
+  être atteint au plus tôt le **21 octobre** (14 jours consécutifs depuis le 8).
+- Prochaine échéance : 2026-10-09 02:40 CEST.
