@@ -1,4 +1,6 @@
 # Dépendances d'exécution figées avec leur hash (pip install --require-hashes -r requirements.lock)
-# Hash à confirmer sur le Bixeon : pip download defusedxml==0.7.1 --no-deps && sha256sum *.whl
+# Hash vérifié le 2026-10-04 : pip download defusedxml==0.7.1 --no-deps && sha256sum *.whl,
+# identique au digest publié par PyPI (https://pypi.org/pypi/defusedxml/0.7.1/json).
+# Wheel universelle (py2.py3-none-any) : pas besoin du hash du sdist.
 defusedxml==0.7.1 \
     --hash=sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61
