@@ -7,5 +7,9 @@ After=network-online.target
 Type=oneshot
 WorkingDirectory=%h/aube
 ExecStart=%h/aube/.venv/bin/python -m aube collect
+# Un run normal dure ~2 min (139 s pour 28 requêtes le 2026-10-04). http.py peut attendre
+# jusqu'à 600 s par Retry-After : 1 h en tolère plusieurs, et borne un run bloqué bien avant
+# le suivant. Attention : un run tué n'écrit pas son manifeste (voir docs/journal.md).
+TimeoutStartSec=1h
 Nice=10
 NoNewPrivileges=true

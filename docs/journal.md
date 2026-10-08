@@ -139,6 +139,20 @@ la trace.
 - Les redirections hors https sont refusées. Cas observé :
   `https://home.cern/news/feed/` répond 301 vers `http://home.cern/feed/`.
 
+### systemd : `TimeoutStartSec=1h`
+- Raison : `http.py` peut attendre 600 s par `Retry-After`, avec 4 essais par requête. Sans
+  plafond, un run bloqué pouvait durer indéfiniment (un service oneshot n'a pas de délai par
+  défaut).
+- Valeur : un run normal dure environ 2 min (de 70 à 139 s sur les 6 runs du 2026-10-04 ; 139 s
+  pour 28 requêtes). 1 h tolère plusieurs attentes `Retry-After` maximales.
+- Vérification : `systemd-analyze --user verify` sort à 0.
+- Conséquence connue, non traitée : un run tué (SIGTERM au bout d'une heure) n'écrit pas son
+  manifeste. Or les sources déjà validées sont commitées dans l'index : leurs éléments n'ont
+  alors aucun manifeste. Pour arXiv et INSPIRE, le recouvrement les ré-archive au run suivant
+  (scénario rejoué par la revue). Pour CERN, un élément sorti du flux entre-temps laisserait
+  un `index_non_rejouable` permanent. Piste : intercepter SIGTERM pour écrire un manifeste
+  `interrupted` avant de sortir.
+
 ## Volume disque (mesuré le 2026-10-04 après le run 0303Z)
 
 | | octets |
