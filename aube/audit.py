@@ -147,10 +147,15 @@ def audit(data_dir, now=None, days=14) -> dict:
             "WHERE source='cern' GROUP BY 1 HAVING count(DISTINCT item_id) > 1"):
         checks["doublon_cern"].append(str(row))
 
-    # 6. erreurs de run
+    # 6. erreurs de run : seules celles de la fenêtre du critère (`days` derniers jours) bloquent.
+    # Les manifestes ne sont jamais supprimés : sans cette borne, une seule erreur ancienne
+    # rendrait le critère inatteignable pour toujours. Les plus anciennes restent affichées.
+    horizon = (now.date() - timedelta(days=days - 1)).strftime("%Y%m%d")
+    old_errors = []
     for m in runs:
         for e in m.get("errors", []):
-            checks["erreur_de_run"].append(f"{m['run_id']} {e['source']}/{e['key']} : {e['error']}")
+            line = f"{m['run_id']} {e['source']}/{e['key']} : {e['error']}"
+            (checks["erreur_de_run"] if m["run_id"][:8] >= horizon else old_errors).append(line)
 
     # Critère : `days` jours consécutifs (jusqu'à aujourd'hui) avec un run sans erreur.
     ok_days = {m["run_id"][:8] for m in runs if m.get("status") == "ok"}
@@ -169,6 +174,7 @@ def audit(data_dir, now=None, days=14) -> dict:
         "items_par_source": counts,
         "temoins_verifies": witness_checked,
         "problemes": {k: v for k, v in checks.items()},
+        "erreurs_hors_fenetre": old_errors,
         "critere_phase1": "ATTEINT" if streak >= days and not blocking else "NON ATTEINT",
     }
 
@@ -186,5 +192,8 @@ def render(rep: dict) -> str:
         lines += [f"    {x}" for x in v[:10]]
         if len(v) > 10:
             lines.append(f"    … {len(v) - 10} de plus")
+    if rep["erreurs_hors_fenetre"]:
+        lines.append(f"(info) {len(rep['erreurs_hors_fenetre'])} erreur(s) de run antérieure(s) "
+                     f"à la fenêtre de {rep['objectif_jours']} jours, non bloquante(s)")
     lines.append(f"Critère phase 1 : {rep['critere_phase1']}")
     return "\n".join(lines)

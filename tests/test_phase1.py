@@ -180,6 +180,23 @@ def test_inspire_pagination_decalee_detectee(env):
     assert s.db.execute("SELECT count(*) FROM items WHERE source='inspire'").fetchone()[0] == 0
 
 
+def test_erreur_de_run_bornee_a_la_fenetre(env):
+    cfg, web = env
+    web.cern = [("a", "A")]
+    web.down.add("https://home.cern")
+    go(cfg, web, T0)                               # run en erreur le jour 0
+    web.down.clear()
+    for d in range(1, 15):
+        go(cfg, web, T0 + timedelta(days=d))
+    # fenêtre de 14 jours = jours 1 à 14 : l'erreur du jour 0 n'en fait plus partie
+    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=14, hours=1), days=14)
+    assert "erreur_de_run" not in rep["problemes"]
+    assert len(rep["erreurs_hors_fenetre"]) == 2   # 2 pages CERN
+    # fenêtre de 15 jours : elle en fait partie et bloque
+    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=14, hours=1), days=15)
+    assert len(rep["problemes"]["erreur_de_run"]) == 2
+
+
 def test_archive_deterministe(env, tmp_path):
     """Mêmes réponses, même moment → blobs octet pour octet identiques."""
     cfg, web = env
