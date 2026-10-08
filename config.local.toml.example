@@ -1,0 +1,3 @@
+# Copier en config.local.toml (non versionné) et adapter.
+[general]
+user_agent = "aube/0.1 (veille locale personnelle; mailto:toi@example.org)"

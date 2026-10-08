@@ -1,0 +1,38 @@
+# Aube — configuration de la phase 1 (collecte et archive)
+# Toute modification de ce fichier change son hash, consigné dans chaque manifeste.
+
+[general]
+# Relatif à la racine du projet (dossier contenant ce fichier).
+data_dir = "data"
+# arXiv et INSPIRE demandent un User-Agent identifiable avec un contact.
+# Mets ton adresse dans config.local.toml (non versionné), pas ici.
+user_agent = "aube/0.1 (veille locale personnelle)"
+timeout_s = 60
+max_bytes = 50_000_000   # garde-fou : une réponse plus grosse est refusée
+retries = 4
+
+[arxiv]
+categories = ["hep-ex", "hep-ph", "hep-th", "cond-mat.supr-con"]
+# Recouvrement des fenêtres : couvre les week-ends et les retards d'annonce.
+# Les doublons induits sont absorbés par l'index (clé id+version).
+overlap_days = 7
+page_size = 200
+delay_s = 3.5            # arXiv demande >= 3 s entre requêtes
+
+[arxiv_witness]
+# Flux RSS quotidien d'arXiv, utilisé UNIQUEMENT comme témoin indépendant :
+# l'audit vérifie que tout ce qu'il annonce se retrouve dans l'archive API.
+enabled = true
+
+[cern]
+feeds = ["https://home.cern/api/news/news/feed.rss"]
+
+[inspire]
+enabled = true
+# {since} et {until} sont remplacés par des dates AAAA-MM-JJ (UTC).
+# until = hier : la fenêtre est close, son total ne bouge plus pendant la pagination.
+query = "da >= {since} and da <= {until}"
+overlap_days = 3
+page_size = 250
+delay_s = 1.0
+fields = "control_number,titles.title,abstracts.value,arxiv_eprints,authors.full_name,inspire_categories,document_type,publication_info,citation_count,references.record,created,updated"

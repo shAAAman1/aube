@@ -1,0 +1,181 @@
+"""Run de collecte : interroge les sources, archive les octets bruts, indexe, écrit le manifeste."""
+
+import fcntl
+import platform
+import time
+from datetime import datetime, timedelta, timezone
+
+from . import __version__, code_hash, git_state
+from .http import FetchError, Fetcher
+from .sources import arxiv, cern, inspire
+from .store import Store
+
+
+def _iso(dt: datetime) -> str:
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _parse_iso(s: str) -> datetime:
+    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+
+class Run:
+    def __init__(self, cfg, store: Store, fetcher: Fetcher, now: datetime, sleep=time.sleep,
+                 clock=None):
+        self.cfg, self.store, self.fetcher, self.sleep = cfg, store, fetcher, sleep
+        self.clock = clock or (lambda: datetime.now(timezone.utc))
+        self.now = now.replace(second=0, microsecond=0)
+        self.run_id = self.now.strftime("%Y%m%dT%H%MZ")
+        self.manifest = {
+            "run_id": self.run_id, "started_at": _iso(self.clock()),
+            "aube_version": __version__, "code_sha256": code_hash(), "git": git_state(),
+            "config_sha256": cfg.sha256, "python": platform.python_version(),
+            "fetches": [], "windows": [], "errors": [],
+        }
+
+    # --- primitives ----------------------------------------------------------
+    def fetch(self, kind: str, key: str, url: str) -> tuple[bytes, str]:
+        entry = {"seq": len(self.manifest["fetches"]), "kind": kind, "key": key, "url": url,
+                 "fetched_at": _iso(self.clock())}
+        self.manifest["fetches"].append(entry)
+        try:
+            r = self.fetcher.get(url)
+        except FetchError as e:
+            entry.update(status="error", error=str(e))
+            raise
+        digest = self.store.put_blob(r.body)
+        entry.update(status="ok", http=r.status, sha256=digest, bytes=len(r.body),
+                     content_type=r.content_type)
+        return r.body, digest
+
+    def error(self, source: str, key: str, exc: Exception):
+        self.manifest["errors"].append({"source": source, "key": key,
+                                        "error": f"{type(exc).__name__}: {exc}"})
+
+    def window(self, source, key, since, until, expected, received):
+        complete = expected is None or received == expected
+        w = {"source": source, "key": key, "since": since, "until": until,
+             "expected": expected, "received": received, "complete": complete}
+        self.manifest["windows"].append(w)
+        self.store.db.execute("INSERT INTO windows VALUES (?,?,?,?,?,?,?,?)",
+                              (self.run_id, source, key, since, until, expected, received,
+                               int(complete)))
+        return complete
+
+    # --- sources -------------------------------------------------------------
+    def arxiv_category(self, cat: str):
+        c = self.cfg.section("arxiv")
+        until = self.now
+        last = self.store.last_complete_until("arxiv", cat)
+        since = (_parse_iso(last) if last else until) - timedelta(days=c["overlap_days"])
+        size, start, expected, received = c["page_size"], 0, None, 0
+        while True:
+            url = arxiv.api_url(cat, since, until, start, size)
+            for attempt in range(4):  # l'API renvoie parfois une page vide à tort
+                body, digest = self.fetch("arxiv_api", cat, url)
+                items, total = arxiv.parse_api(body)
+                self.sleep(c["delay_s"])
+                if items or start >= total:
+                    break
+            if expected is None:
+                expected = total
+            elif total != expected:
+                raise arxiv.ArxivError(f"total instable pendant la pagination ({expected}→{total})")
+            self.manifest["fetches"][-1]["n_items"] = len(items)
+            self.store.add_items(items, self.run_id, digest)
+            received += len(items)
+            start += size
+            if start >= total or not items:
+                break
+        if not self.window("arxiv", cat, _iso(since), _iso(until), expected, received):
+            raise arxiv.ArxivError(f"fenêtre incomplète : {received}/{expected}")
+
+    def arxiv_witness(self, cat: str):
+        body, digest = self.fetch("arxiv_rss", cat, arxiv.RSS.format(cat=cat))
+        rows = arxiv.parse_rss(body)
+        self.manifest["fetches"][-1]["n_items"] = len(rows)
+        for item_id, version, atype in rows:
+            self.store.db.execute("INSERT OR IGNORE INTO witness VALUES (?,?,?,?,?,?)",
+                                  (self.run_id, cat, item_id, version, atype, digest))
+
+    def cern_feed(self, url: str):
+        body, digest = self.fetch("cern_rss", url, url)
+        items = cern.parse_feed(body, url)
+        already = sum(self.store.known("cern", it.item_id) for it in items)
+        f = self.manifest["fetches"][-1]
+        f.update(n_items=len(items), n_already_known=already)
+        self.store.add_items(items, self.run_id, digest)
+        self.window("cern", url, _iso(self.now), _iso(self.now), None, len(items))
+
+    def inspire(self):
+        c = self.cfg.section("inspire")
+        until = (self.now - timedelta(days=1)).date()  # fenêtre close : jusqu'à hier inclus
+        last = self.store.last_complete_until("inspire", "literature")
+        base = datetime.fromisoformat(last).date() if last else until
+        since = base - timedelta(days=c["overlap_days"])
+        page, expected, received = 1, None, 0
+        while True:
+            url = inspire.api_url(c["query"], since, until, c["page_size"], c["fields"], page)
+            body, digest = self.fetch("inspire", "literature", url)
+            items, total, _ = inspire.parse_page(body)
+            self.sleep(c["delay_s"])
+            if expected is None:
+                expected = total
+                if total > inspire.MAX_DEPTH:
+                    raise inspire.InspireError(f"{total} résultats > {inspire.MAX_DEPTH} : réduire la fenêtre")
+            self.manifest["fetches"][-1]["n_items"] = len(items)
+            self.store.add_items(items, self.run_id, digest)
+            received += len(items)
+            if not items or received >= expected:
+                break
+            page += 1
+        if not self.window("inspire", "literature", since.isoformat(), until.isoformat(),
+                           expected, received):
+            raise inspire.InspireError(f"fenêtre incomplète : {received}/{expected}")
+
+    # --- orchestration ---------------------------------------------------------
+    def execute(self) -> dict:
+        db = self.store.db
+        db.execute("INSERT INTO runs (run_id, started_at) VALUES (?,?)",
+                   (self.run_id, self.manifest["started_at"]))
+        jobs = [("arxiv", cat, lambda c=cat: self.arxiv_category(c))
+                for cat in self.cfg.section("arxiv").get("categories", [])]
+        if self.cfg.section("arxiv_witness").get("enabled", True):
+            jobs += [("arxiv_witness", cat, lambda c=cat: self.arxiv_witness(c))
+                     for cat in self.cfg.section("arxiv").get("categories", [])]
+        jobs += [("cern", u, lambda u=u: self.cern_feed(u))
+                 for u in self.cfg.section("cern").get("feeds", [])]
+        if self.cfg.section("inspire").get("enabled", False):
+            jobs.append(("inspire", "literature", self.inspire))
+
+        for source, key, job in jobs:
+            try:
+                job()
+                db.commit()  # chaque source validée indépendamment
+            except Exception as e:  # une source en panne n'arrête pas les autres
+                db.rollback()
+                self.error(source, key, e)
+                # le rollback a effacé la fenêtre éventuelle : la consigner au manifeste suffit
+
+        m = self.manifest
+        m["finished_at"] = _iso(self.clock())
+        m["status"] = "ok" if not m["errors"] else "partial"
+        digest = self.store.write_manifest(self.run_id, m)
+        db.execute("UPDATE runs SET finished_at=?, status=?, manifest_sha256=? WHERE run_id=?",
+                   (m["finished_at"], m["status"], digest, self.run_id))
+        db.commit()
+        return m
+
+
+def run(cfg, now: datetime | None = None, fetcher: Fetcher | None = None, sleep=time.sleep,
+        clock=None) -> dict:
+    g = cfg.section("general")
+    store = Store(cfg.data_dir)
+    lock = open(cfg.data_dir / ".lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise SystemExit("un autre run est en cours (verrou data/.lock)")
+    fetcher = fetcher or Fetcher(g["user_agent"], g.get("timeout_s", 60),
+                                 g.get("max_bytes", 50_000_000), g.get("retries", 4))
+    return Run(cfg, store, fetcher, now or datetime.now(timezone.utc), sleep, clock).execute()

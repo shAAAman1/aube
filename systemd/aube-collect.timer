@@ -1,0 +1,10 @@
+[Unit]
+Description=Aube — déclenche la collecte chaque nuit
+
+[Timer]
+# arXiv publie vers 20:00 heure de New York, soit ~02:00 à Paris.
+OnCalendar=*-*-* 02:40:00 Europe/Paris
+Persistent=true
+
+[Install]
+WantedBy=timers.target

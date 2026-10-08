@@ -1,0 +1,12 @@
+[project]
+name = "aube"
+version = "0.1.0"
+description = "Veille physique locale — phase 1 : collecte et archive rejouable"
+requires-python = ">=3.11"
+dependencies = ["defusedxml==0.7.1"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

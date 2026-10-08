@@ -1,0 +1,11 @@
+[Unit]
+Description=Aube — collecte nocturne des flux de physique
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/aube
+ExecStart=%h/aube/.venv/bin/python -m aube collect
+Nice=10
+NoNewPrivileges=true
