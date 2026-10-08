@@ -19,6 +19,8 @@ def main(argv=None):
     a.add_argument("--json", action="store_true")
     a.add_argument("--days", type=int, default=14)
     sub.add_parser("verify", help="recalcule le SHA256 de tous les blobs")
+    r = sub.add_parser("ref", help="résout la chaîne de référence d'un élément")
+    r.add_argument("element", help="ex. arxiv:2610.01234v2, arxiv:2610.01234, inspire:123456")
     args = ap.parse_args(argv)
     cfg = config.load(args.config)
 
@@ -34,6 +36,20 @@ def main(argv=None):
         rep = audit_mod.audit(cfg.data_dir, days=args.days)
         print(json.dumps(rep, ensure_ascii=False, indent=1) if args.json else audit_mod.render(rep))
         return 0 if rep["critere_phase1"] == "ATTEINT" else 2
+
+    if args.cmd == "ref":
+        from .ref import resolve
+        from .sources.arxiv import split_id
+        src, _, ident = args.element.partition(":")
+        ver = None
+        if src == "arxiv":
+            ident, ver = split_id("arXiv:" + ident)
+        refs = resolve(Store(cfg.data_dir), src, ident, ver or None)
+        if not refs:
+            print(f"✗ {args.element} : inconnu de l'archive")
+            return 1
+        print(json.dumps(refs, ensure_ascii=False, indent=1))
+        return 0 if all(x["verifie"] for x in refs) else 1
 
     if args.cmd == "verify":
         store, bad, n = Store(cfg.data_dir), 0, 0

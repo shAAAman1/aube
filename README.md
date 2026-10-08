@@ -12,6 +12,8 @@ INSPIRE-HEP), trie ce qui compte et rédige une synthèse lue au réveil.
   réponse brute, commit git, hash du code et de la configuration.
 - **Contenu web non fiable.** Le XML est parsé avec `defusedxml`. Rien de ce qui est reçu
   n'est exécuté ni interprété comme une instruction.
+- **Référencé (principe fondateur).** Toute donnée remonte, de façon vérifiable, à sa
+  source publique et aux octets exacts reçus. Une référence irrésoluble est un défaut.
 - **Falsifiable.** Le critère de phase est vérifié par un audit qui peut échouer.
 
 ## Architecture de l'archive
@@ -55,8 +57,11 @@ remplacements d'articles anciens et les annonces tardives manquaient alors que l
 4. **Témoin indépendant.** Toute annonce du RSS quotidien d'arXiv vieille de plus de
    24 h doit se trouver dans l'archive API. C'est le seul contrôle externe de la perte.
 5. **Rejouabilité.** Le rejeu des parseurs sur les blobs reproduit exactement l'index.
-6. **Doublons sémantiques.** Aucun même objet sous deux clés.
-7. **Erreurs de run.** Toute erreur d'un run des 14 derniers jours bloque le critère.
+6. **Références.** Chaque élément indexé pointe vers un blob qui le contient réellement
+   (re-parsing). `python -m aube ref arxiv:<id>v<n>` montre la chaîne complète :
+   source publique → blob SHA256 → manifeste (URL, date, commit).
+7. **Doublons sémantiques.** Aucun même objet sous deux clés.
+8. **Erreurs de run.** Toute erreur d'un run des 14 derniers jours bloque le critère.
 
 Les problèmes datés (erreur de run, trou CERN possible, annonce du témoin absente de
 l'archive) ne bloquent que s'ils tombent dans les 14 derniers jours. Les plus anciens sont

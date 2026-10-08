@@ -73,6 +73,7 @@ def audit(data_dir, now=None, days=14) -> dict:
     witness_live = defaultdict(list)    # cat -> dates des lectures RSS non vides
     windows = defaultdict(list)
     runs = []
+    blob_keys = defaultdict(set)        # sha256 du blob -> clés qu'il contient réellement
 
     for mpath in manifests:
         m = json.loads(mpath.read_bytes())
@@ -113,6 +114,7 @@ def audit(data_dir, now=None, days=14) -> dict:
                 if rows:
                     witness_live[f["key"]].append(_dt(f["fetched_at"]).date())
                 continue
+            blob_keys[f["sha256"]] |= {(it.source, it.item_id, it.version) for it in items}
             if f["kind"] == "cern_rss":
                 cern_run += items
             replay |= {(it.source, it.item_id, it.version) for it in items}
@@ -197,6 +199,12 @@ def audit(data_dir, now=None, days=14) -> dict:
     if indexed != replay:
         checks["index_non_rejouable"].append(
             f"{len(indexed - replay)} dans l'index seulement, {len(replay - indexed)} dans le rejeu seulement")
+
+    # 4b. principe de référence : chaque élément indexé pointe vers un blob qui le contient
+    for src, iid, ver, fsha in store.db.execute(
+            "SELECT source, item_id, version, fetch_sha256 FROM items"):
+        if (src, iid, ver) not in blob_keys.get(fsha, ()):
+            checks["reference_irresoluble"].append(f"{src}:{iid}{ver} → sha256:{fsha[:16]}…")
 
     # 5. doublons sémantiques (même objet sous deux clés)
     for row in store.db.execute(

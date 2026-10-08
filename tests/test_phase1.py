@@ -519,3 +519,31 @@ def test_archive_deterministe(env, tmp_path):
     go(cfg2, web, T0)
     b = {p.name: p.read_bytes() for p in Store(cfg2.data_dir).blobs.rglob("*.gz")}
     assert a == b
+
+
+def test_reference_resolue_jusqu_au_blob(env):
+    from aube.ref import resolve
+    cfg, web = env
+    web.papers = [paper(7, T0 - timedelta(hours=2))]
+    go(cfg, web, T0)
+    s = Store(cfg.data_dir)
+    [r] = resolve(s, "arxiv", "2610.00007", "v1")
+    assert r["verifie"], r["probleme"]
+    assert r["source_publique"] == "https://arxiv.org/abs/2610.00007v1"
+    assert r["url_interrogee"].startswith("https://oaipmh.arxiv.org/oai?")
+
+
+def test_reference_falsifiee_detectee(env):
+    """Un élément qui pointe vers un blob qui ne le contient pas doit être signalé."""
+    from aube.ref import resolve
+    cfg, web = env
+    web.papers = [paper(1, T0 - timedelta(hours=2))]
+    web.cern = [("a", "A")]
+    go(cfg, web, T0)
+    s = Store(cfg.data_dir)
+    cern_sha = s.db.execute("SELECT fetch_sha256 FROM items WHERE source='cern'").fetchone()[0]
+    s.db.execute("UPDATE items SET fetch_sha256=? WHERE source='arxiv'", (cern_sha,))
+    s.db.commit()
+    assert not resolve(s, "arxiv", "2610.00001", "v1")[0]["verifie"]
+    rep = audit.audit(cfg.data_dir, now=T0)
+    assert "reference_irresoluble" in rep["problemes"]
