@@ -16,6 +16,8 @@ from .store import Store, sha256
 
 KIND_SOURCE = {"arxiv_api": "arxiv", "arxiv_oai": "arxiv", "arxiv_rss": "arxiv_witness",
                "cern_rss": "cern", "inspire": "inspire"}
+WINDOW_SOURCE = {"arxiv_oai": "arxiv"}  # nom de la source dans les erreurs du manifeste
+WITNESS_MIN_SPAN = 7                    # jours : une semaine contient toujours des annonces
 WITNESS_GRACE = timedelta(hours=24)
 STALE_AFTER = timedelta(hours=36)
 
@@ -58,6 +60,7 @@ def audit(data_dir, now=None, days=14) -> dict:
     replay = set()                      # (source, item_id, version)
     cern_seen, cern_newest = set(), None
     witness = []                        # (fetched_at, cat, id, version, atype)
+    witness_live = defaultdict(list)    # cat -> dates des lectures RSS non vides
     windows = defaultdict(list)
     runs = []
 
@@ -67,7 +70,7 @@ def audit(data_dir, now=None, days=14) -> dict:
         cern_run = []                   # éléments CERN de ce run, toutes pages confondues
         failed = {(e["source"], e["key"]) for e in m.get("errors", [])}
         for w in m.get("windows", []):
-            if w["complete"] and (w["source"], w["key"]) not in failed:
+            if w["complete"] and (WINDOW_SOURCE.get(w["source"], w["source"]), w["key"]) not in failed:
                 windows[(w["source"], w["key"])].append(w)
         for f in m["fetches"]:
             if f.get("status") != "ok":
@@ -82,15 +85,26 @@ def audit(data_dir, now=None, days=14) -> dict:
                 checks["hash_invalide"].append(f"{m['run_id']} #{f['seq']} {p}")
                 continue
             source = KIND_SOURCE[f["kind"]]
-            if f["kind"] == "arxiv_rss":
-                for item_id, version, atype in arxiv.parse_rss(raw):
-                    witness.append((f["fetched_at"], f["key"], item_id, version, atype))
+            if (source, f["key"]) in failed:
+                continue  # le run a annulé cette source (réponse rejetée, erreur déjà comptée)
+            # Une réponse archivée que le parseur actuel rejette ne doit pas faire planter
+            # l'audit : les manifestes sont permanents, il ne tournerait plus jamais.
+            try:
+                if f["kind"] == "arxiv_rss":
+                    rows = arxiv.parse_rss(raw)
+                else:
+                    items = parse_fetch(f["kind"], raw, f["key"])
+            except Exception as e:
+                checks["blob_illisible"].append(
+                    f"{m['run_id']} #{f['seq']} {f['kind']} : {type(e).__name__}: {e}")
                 continue
-            items = parse_fetch(f["kind"], raw, f["key"])
+            if f["kind"] == "arxiv_rss":
+                witness += [(f["fetched_at"], f["key"], *r) for r in rows]
+                if rows:
+                    witness_live[f["key"]].append(_dt(f["fetched_at"]).date())
+                continue
             if f["kind"] == "cern_rss":
                 cern_run += items
-            if (source, f["key"]) in failed:
-                continue  # le run a annulé l'indexation de cette source
             replay |= {(it.source, it.item_id, it.version) for it in items}
 
         # 2a. continuité d'un flux à fenêtre glissante, jugée sur l'union des pages du run :
@@ -129,13 +143,15 @@ def audit(data_dir, now=None, days=14) -> dict:
             checks["source_en_retard"].append(f"arxiv_oai/{key} : dernière fenêtre complète {reach}")
 
     # 3. témoin indépendant : tout ce que le RSS annonce doit être dans l'archive.
-    # Un flux lu le jour J ne contient que des annonces de datestamp <= J : il est jugeable dès
-    # qu'une fenêtre OAI couvre J. Pour l'ancienne API, on gardait une marge de 24 h.
+    # Un flux lu le jour J ne contient que des annonces de datestamp <= J. Mais la datestamp
+    # suit la DERNIÈRE modification : un article remplacé (ou corrigé) le jour J+1 n'est
+    # moissonné qu'au run J+2. On juge donc le témoin lu le jour J quand l'OAI couvre J+1.
+    # Pour l'ancienne API, on gardait une marge de 24 h.
     limit_by_cat = {}
     for (s, k), ws in windows.items():
         u = max(w["until"] for w in ws)
         if s == "arxiv_oai":
-            lim = _day_end(u) - timedelta(microseconds=1)
+            lim = _day_end(u) - timedelta(days=1, microseconds=1)
         elif s == "arxiv":
             lim = _dt(u) - WITNESS_GRACE
         else:
@@ -151,6 +167,20 @@ def audit(data_dir, now=None, days=14) -> dict:
             has_id = any(k[0] == "arxiv" and k[1] == item_id for k in replay) if version else False
             tag = "temoin_version_absente" if has_id else "temoin_absent"
             checks[tag].append(f"{cat} {item_id}{version} ({atype}) annoncé {fetched_at}")
+
+    # 3b. témoin inactif : pour arXiv (OAI ne donne aucun total), le témoin est le SEUL
+    # contrôle de complétude. S'il ne produit plus rien (format changé, flux déplacé), il faut
+    # le dire plutôt que conclure « aucun témoin absent ». Jugé sur la partie de l'horizon
+    # couverte par l'archive, dès qu'elle atteint une semaine.
+    horizon_day = now.date() - timedelta(days=days - 1)
+    first_day = min((datetime.strptime(m["run_id"][:8], "%Y%m%d").date() for m in runs), default=None)
+    if first_day:
+        start = max(horizon_day, first_day)
+        if (now.date() - start).days + 1 >= WITNESS_MIN_SPAN:
+            for cat in sorted({k for (s, k) in windows if s == "arxiv_oai"}):
+                if not any(d >= start for d in witness_live.get(cat, [])):
+                    checks["temoin_inactif"].append(
+                        f"{cat} : aucune annonce lue dans le RSS depuis le {start}")
 
     # 4. l'index SQLite est-il exactement ce que le rejeu des données primaires produit ?
     indexed = set(store.db.execute("SELECT source, item_id, version FROM items"))

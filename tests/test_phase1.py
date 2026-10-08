@@ -194,11 +194,16 @@ def test_audit_propre_puis_falsifications(env):
     assert rep["temoins_verifies"] >= 1
     assert rep["critere_phase1"] == "ATTEINT"
 
-    # falsification 1 : le témoin annonce un article que l'API n'a jamais rendu
+    # falsification 1 : le témoin annonce un article que l'archive n'a jamais reçu.
+    # Lu le 4 octobre, il n'est jugé que quand l'OAI couvre le 5 (marge d'un jour de datestamp).
     web.witness = {"hep-th": [("2610.99999", "v1", "new")]}
     go(cfg, web, T0 + timedelta(days=3))
-    go(cfg, web, T0 + timedelta(days=4, hours=2))
+    web.witness = {}
+    go(cfg, web, T0 + timedelta(days=4, hours=2))       # OAI jusqu'au 4 : trop tôt pour juger
     rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=4, hours=3))
+    assert "temoin_absent" not in rep["problemes"]
+    go(cfg, web, T0 + timedelta(days=5))                # OAI jusqu'au 5
+    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=5, hours=1))
     assert "temoin_absent" in rep["problemes"]
 
     # falsification 2 : un octet altéré dans l'archive
@@ -207,8 +212,105 @@ def test_audit_propre_puis_falsifications(env):
     raw = bytearray(gzip.decompress(blob.read_bytes()))
     raw[-2] ^= 1
     blob.write_bytes(gzip.compress(bytes(raw), mtime=0))
-    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=4, hours=3))
+    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=5, hours=1))
     assert "hash_invalide" in rep["problemes"]
+
+
+def test_temoin_lu_apres_reconstruction_du_rss(env):
+    """Run rattrapé à 05:00 UTC : le RSS du jour annonce des articles de datestamp J que l'OAI
+    (jusqu'à J-1) n'a pas encore. Pas de faux temoin_absent ; jugé et trouvé deux runs plus tard."""
+    cfg, web = env
+    j = T0.replace(hour=5)                                          # 1er octobre, 05:00
+    web.papers = [paper(5, j - timedelta(hours=20), stamp=j.date().isoformat())]
+    web.witness = {"hep-th": [("2610.00005", "v1", "new")]}
+    go(cfg, web, j)
+    web.witness = {}
+    for d in (1, 2):
+        go(cfg, web, T0 + timedelta(days=d))
+        rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=d, hours=1))
+        assert not {"temoin_absent", "temoin_version_absente"} & set(rep["problemes"]), rep["problemes"]
+    assert rep["temoins_verifies"] == 1
+
+
+def test_temoin_inactif_signale(env):
+    """Si le RSS ne produit plus rien (format changé), le critère ne doit pas passer en silence."""
+    cfg, web = env
+    for d in range(8):
+        go(cfg, web, T0 + timedelta(days=d))
+    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=7, hours=1))
+    assert any(x.startswith("hep-th") for x in rep["problemes"].get("temoin_inactif", []))
+    assert rep["critere_phase1"] == "NON ATTEINT"
+    # moins d'une semaine d'archive : pas encore jugeable
+    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=5, hours=1), days=6)
+    assert "temoin_inactif" not in rep["problemes"]
+
+
+def test_audit_survit_a_un_blob_rejete(env, monkeypatch):
+    cfg, web = env
+    web.oai_errors = {"physics:hep-ph": "badResumptionToken"}       # rejetée à la collecte
+    go(cfg, web, T0)
+    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(hours=1))    # ne doit pas lever
+    assert "blob_illisible" not in rep["problemes"]                 # déjà compté : erreur_de_run
+    assert rep["problemes"]["erreur_de_run"]
+    # un parseur devenu plus strict rejette un blob qu'un run avait accepté : signalé
+    web.oai_errors = {}
+    web.papers = [paper(1, T0 - timedelta(hours=5))]
+    go(cfg, web, T0 + timedelta(days=1))
+    monkeypatch.setattr(audit.arxiv, "parse_oai", lambda raw: (_ for _ in ()).throw(ValueError("x")))
+    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=1, hours=1))
+    assert rep["problemes"]["blob_illisible"]
+
+
+def _manifest(store, run_id, windows=(), fetches=(), errors=()):
+    import json
+    store.manifests.mkdir(parents=True, exist_ok=True)
+    (store.manifests / f"{run_id}.json").write_text(json.dumps(
+        {"run_id": run_id, "status": "ok", "fetches": list(fetches), "windows": list(windows),
+         "errors": list(errors)}))
+
+
+def test_trou_et_retard_en_jours_clos(env):
+    cfg, _ = env
+    s = Store(cfg.data_dir)
+    w = lambda a, b: {"source": "arxiv_oai", "key": "hep-th", "since": a, "until": b,
+                      "expected": None, "received": 0, "complete": True}
+    _manifest(s, "20260904T0040Z", [w("2026-09-01", "2026-09-03")])
+    _manifest(s, "20260905T0040Z", [w("2026-09-04", "2026-09-04")])  # contigu : pas de trou
+    _manifest(s, "20260913T0040Z", [w("2026-09-10", "2026-09-12")])  # rien du 5 au 9
+    rep = audit.audit(cfg.data_dir, now=datetime(2026, 9, 14, 11, 0, tzinfo=timezone.utc))
+    assert rep["problemes"]["trou_de_fenetre"] == ["arxiv_oai/hep-th : rien entre 2026-09-04 et 2026-09-10"]
+    assert "source_en_retard" not in rep["problemes"]                # 35 h après la fin du 12
+    rep = audit.audit(cfg.data_dir, now=datetime(2026, 9, 14, 13, 0, tzinfo=timezone.utc))
+    assert rep["problemes"]["source_en_retard"]                      # 37 h
+
+
+def test_rejeu_mixte_ancienne_api_et_oai(env):
+    """Archive réelle du 4 octobre : blobs arxiv_api (abandonnés) puis arxiv_oai, mêmes articles."""
+    from aube.sources import arxiv as ax
+    cfg, web = env
+    s = Store(cfg.data_dir)
+    raw = (ROOT / "tests/fixtures/arxiv_api_hepph_legacy_20261004.xml").read_bytes()
+    sha = s.put_blob(raw)
+    items, total = ax.parse_api(raw)
+    s.add_items(items, "20260930T0040Z", sha)
+    s.db.commit()
+    _manifest(s, "20260930T0040Z",
+              windows=[{"source": "arxiv", "key": "hep-ph", "since": "2026-09-27T01:56:00Z",
+                        "until": "2026-09-30T00:40:00Z", "expected": 3, "received": 3, "complete": True}],
+              fetches=[{"seq": 0, "kind": "arxiv_api", "key": "hep-ph", "status": "ok", "sha256": sha,
+                        "fetched_at": "2026-09-30T00:40:00Z"}])
+    # l'OAI renvoie ensuite les mêmes articles, avec en plus la v1 de 2609.34937
+    web.papers = []
+    for it in items:
+        for v in range(1, int(it.version[1:]) + 1):
+            web.papers.append({"id": it.item_id, "v": f"v{v}", "updated": it.updated,
+                               "cats": ["hep-ph"], "title": it.title, "stamp": "2026-09-29"})
+    go(cfg, web, T0)
+    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(hours=1), days=1)
+    assert "index_non_rejouable" not in rep["problemes"], rep["problemes"]
+    assert "blob_illisible" not in rep["problemes"], rep["problemes"]
+    keys = set(s.db.execute("SELECT item_id, version FROM items WHERE source='arxiv'"))
+    assert ("2609.34937", "v1") in keys and ("2609.34937", "v2") in keys
 
 
 def test_index_rejouable(env):

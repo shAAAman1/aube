@@ -126,6 +126,11 @@ def test_opener_refuse_redirection_http_de_bout_en_bout():
             raise AssertionError("requête http émise")
 
     f = Fetcher("ua", retries=0)
-    f.opener = urllib.request.build_opener(_HttpsOnlyRedirect, Redirige)
+    f.opener.add_handler(Redirige())   # l'opener construit par Fetcher, pas un opener de test
     with pytest.raises(FetchError, match="hors https"):
         f.get("https://home.cern/news/feed/")
+
+
+def test_schema_http_refuse():
+    with pytest.raises(FetchError, match="https seulement"):
+        Fetcher("ua", retries=0).get("http://home.cern/feed/")
