@@ -413,6 +413,72 @@ def test_inspire_rattrapage_par_tranches(env):
     assert w["since"] == "2026-10-07"                   # avance : reprise 3 jours avant
 
 
+def _sigterm_on(fragment):
+    """Envoie un VRAI SIGTERM au processus à la première requête contenant `fragment`."""
+    import os
+    import signal
+    fired = []
+
+    def hook(url):
+        if fragment in url and not fired:
+            fired.append(url)
+            os.kill(os.getpid(), signal.SIGTERM)
+    return hook
+
+
+def test_sigterm_ecrit_le_manifeste_et_garde_l_index_rejouable(env):
+    import json
+    import signal
+    cfg, web = env
+    web.papers = [paper(i, T0 - timedelta(hours=3 + i)) for i in range(5)]
+    web.cern = [("a", "A")]
+    web.inspire = [{"control_number": i, "updated": "2026-09-30T10:00:00", "title": "x"}
+                   for i in range(1, 301)]                     # 2 pages
+    web.on_get = _sigterm_on("page=2")                         # au milieu d'INSPIRE
+    before = signal.getsignal(signal.SIGTERM)
+    m = go(cfg, web, T0)
+    assert signal.getsignal(signal.SIGTERM) is before          # handler restauré
+    assert m["status"] == "interrupted"
+    assert [(e["source"], e["key"]) for e in m["errors"]] == [("inspire", "literature")]
+    assert "SIGTERM" in m["errors"][0]["error"]
+    assert m["not_run"] == []
+    s = Store(cfg.data_dir)
+    disk = json.loads((s.manifests / f"{m['run_id']}.json").read_text())
+    assert disk["status"] == "interrupted"                     # manifeste bien écrit
+    counts = dict(s.db.execute("SELECT source, count(*) FROM items GROUP BY 1"))
+    assert counts == {"arxiv": 5, "cern": 1}                   # INSPIRE annulé, le reste gardé
+    assert s.db.execute("SELECT status FROM runs").fetchall() == [("interrupted",)]
+    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(hours=1))
+    assert "index_non_rejouable" not in rep["problemes"], rep["problemes"]
+    assert rep["problemes"]["erreur_de_run"]
+    assert rep["jours_consecutifs_ok"] == 0                    # un run interrompu ne compte pas
+
+
+def test_sigterm_liste_les_sources_non_lancees(env):
+    cfg, web = env
+    web.cern = [("a", "A")]
+    web.on_get = _sigterm_on("home.cern/feed/?paged=2")
+    m = go(cfg, web, T0)
+    assert m["status"] == "interrupted"
+    assert m["errors"][-1]["key"] == "https://home.cern/feed/?paged=2"
+    assert m["not_run"] == [{"source": "inspire", "key": "literature"}]
+    assert "inspire" not in " ".join(f["url"] for f in m["fetches"])
+    interrupted = [f for f in m["fetches"] if f.get("status") == "error"]
+    assert len(interrupted) == 1 and interrupted[0]["error"].startswith("interrompu")
+
+
+def test_ctrl_c_suit_le_meme_chemin(env):
+    cfg, web = env
+
+    def hook(url):
+        if "home.cern" in url:
+            raise KeyboardInterrupt
+    web.on_get = hook
+    m = go(cfg, web, T0)
+    assert m["status"] == "interrupted"
+    assert (Store(cfg.data_dir).manifests / f"{m['run_id']}.json").exists()
+
+
 def test_archive_deterministe(env, tmp_path):
     """Mêmes réponses, même moment → blobs octet pour octet identiques."""
     cfg, web = env

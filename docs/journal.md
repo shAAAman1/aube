@@ -146,12 +146,34 @@ la trace.
 - Valeur : un run normal dure environ 2 min (de 70 à 139 s sur les 6 runs du 2026-10-04 ; 139 s
   pour 28 requêtes). 1 h tolère plusieurs attentes `Retry-After` maximales.
 - Vérification : `systemd-analyze --user verify` sort à 0.
-- Conséquence connue, non traitée : un run tué (SIGTERM au bout d'une heure) n'écrit pas son
-  manifeste. Or les sources déjà validées sont commitées dans l'index : leurs éléments n'ont
+- Conséquence connue (traitée dans l'entrée suivante) : un run tué (SIGTERM au bout d'une
+  heure) n'écrivait pas son manifeste. Or les sources déjà validées sont commitées dans l'index : leurs éléments n'ont
   alors aucun manifeste. Pour arXiv et INSPIRE, le recouvrement les ré-archive au run suivant
   (scénario rejoué par la revue). Pour CERN, un élément sorti du flux entre-temps laisserait
   un `index_non_rejouable` permanent. Piste : intercepter SIGTERM pour écrire un manifeste
   `interrupted` avant de sortir.
+
+### collect : SIGTERM écrit le manifeste (`status: interrupted`)
+- Raison : sans manifeste, les éléments des sources déjà validées restaient dans l'index sans
+  données primaires qui les justifient (voir l'entrée précédente).
+- Mécanisme :
+  - le handler lève `Interrupted`, une BaseException : le « une source en panne n'arrête pas
+    les autres » ne l'absorbe donc pas ;
+  - la source en cours est annulée (rollback) et consignée en erreur ; les sources restantes
+    sont listées dans `not_run` ;
+  - un second SIGTERM pendant la finalisation est ignoré ;
+  - Ctrl-C suit le même chemin ;
+  - code de sortie 1.
+- Preuves :
+  - tests avec un vrai `os.kill(SIGTERM)` envoyé au milieu d'une source :
+    `test_sigterm_ecrit_le_manifeste_et_garde_l_index_rejouable`,
+    `test_sigterm_liste_les_sources_non_lancees`, `test_ctrl_c_suit_le_meme_chemin` ;
+  - 5 mutations détectées (sans handler, c'est pytest lui-même qui est tué) ;
+  - essai réel sur une copie de `data/` : `python -m aube collect` contre les vrais flux, tué
+    au bout de 20 s. On obtient un manifeste `interrupted`, hep-ex conservé avec sa fenêtre,
+    hep-ph annulé, 9 sources dans `not_run` et un audit sans `index_non_rejouable`.
+- Limite : un signal reçu avant la boucle des sources (création de la ligne `runs`) ou pendant
+  un rollback n'est pas couvert. Aucun élément n'est alors orphelin, sauf dans le second cas.
 
 ## Volume disque (mesuré le 2026-10-04 après le run 0303Z)
 

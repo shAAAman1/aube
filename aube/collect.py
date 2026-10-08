@@ -2,6 +2,7 @@
 
 import fcntl
 import platform
+import signal
 import time
 from datetime import date, datetime, timedelta, timezone
 
@@ -13,6 +14,18 @@ from .store import Store
 
 def _iso(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+class Interrupted(BaseException):
+    """SIGTERM reçu (TimeoutStartSec de systemd, arrêt de la machine).
+
+    BaseException et non Exception : le « une source en panne n'arrête pas les autres »
+    d'execute() ne doit pas l'absorber, le run doit s'arrêter et écrire son manifeste.
+    """
+
+
+def _on_sigterm(signum, frame):
+    raise Interrupted(f"signal {signal.Signals(signum).name}")
 
 
 def _parse_iso(s: str) -> datetime:
@@ -42,6 +55,9 @@ class Run:
             r = self.fetcher.get(url)
         except FetchError as e:
             entry.update(status="error", error=str(e))
+            raise
+        except (Interrupted, KeyboardInterrupt) as e:
+            entry.update(status="error", error=f"interrompu : {type(e).__name__} {e}".strip())
             raise
         digest = self.store.put_blob(r.body)
         entry.update(status="ok", http=r.status, sha256=digest, bytes=len(r.body),
@@ -180,7 +196,8 @@ class Run:
         if self.cfg.section("inspire").get("enabled", False):
             jobs.append(("inspire", "literature", self.inspire))
 
-        for source, key, job in jobs:
+        interrupted = False
+        for i, (source, key, job) in enumerate(jobs):
             try:
                 job()
                 db.commit()  # chaque source validée indépendamment
@@ -188,15 +205,35 @@ class Run:
                 db.rollback()
                 self.error(source, key, e)
                 # le rollback a effacé la fenêtre éventuelle : la consigner au manifeste suffit
+            except (Interrupted, KeyboardInterrupt) as e:
+                # Les sources déjà validées sont dans l'index : sans manifeste, elles ne
+                # seraient plus rejouables. On annule la source en cours et on consigne tout.
+                self._finalizing()
+                db.rollback()
+                self.error(source, key, e)
+                self.manifest["not_run"] = [{"source": s_, "key": k_} for s_, k_, _ in jobs[i + 1:]]
+                interrupted = True
+                break
+        self._finalizing()
 
         m = self.manifest
         m["finished_at"] = _iso(self.clock())
-        m["status"] = "ok" if not m["errors"] else "partial"
+        m["status"] = "interrupted" if interrupted else ("ok" if not m["errors"] else "partial")
         digest = self.store.write_manifest(self.run_id, m)
         db.execute("UPDATE runs SET finished_at=?, status=?, manifest_sha256=? WHERE run_id=?",
                    (m["finished_at"], m["status"], digest, self.run_id))
         db.commit()
         return m
+
+    @staticmethod
+    def _finalizing():
+        """Écriture du manifeste en cours : un second SIGTERM ne doit pas l'interrompre.
+
+        systemd envoie SIGKILL après TimeoutStopSec (90 s par défaut) ; la finalisation prend
+        quelques millisecondes.
+        """
+        if signal.getsignal(signal.SIGTERM) is _on_sigterm:
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
 
 def run(cfg, now: datetime | None = None, fetcher: Fetcher | None = None, sleep=time.sleep,
@@ -210,4 +247,8 @@ def run(cfg, now: datetime | None = None, fetcher: Fetcher | None = None, sleep=
         raise SystemExit("un autre run est en cours (verrou data/.lock)")
     fetcher = fetcher or Fetcher(g["user_agent"], g.get("timeout_s", 60),
                                  g.get("max_bytes", 50_000_000), g.get("retries", 4))
-    return Run(cfg, store, fetcher, now or datetime.now(timezone.utc), sleep, clock).execute()
+    previous = signal.signal(signal.SIGTERM, _on_sigterm)
+    try:
+        return Run(cfg, store, fetcher, now or datetime.now(timezone.utc), sleep, clock).execute()
+    finally:
+        signal.signal(signal.SIGTERM, previous)

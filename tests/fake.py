@@ -66,11 +66,14 @@ class FakeWeb:
         self.oai_forced = []      # réponses OAI imposées, servies dans l'ordre
         self.oai_on_page2 = None  # hook(web) appelé avant la première page suivante
         self.oai_deleted = []     # identifiants servis comme supprimés
+        self.on_get = None        # hook(url) appelé avant de répondre (ex. envoyer un signal)
         self.down = set()         # préfixes d'URL en panne
         self.calls = []
 
     def get(self, url):
         self.calls.append(url)
+        if self.on_get:
+            self.on_get(url)
         if any(url.startswith(d) for d in self.down):
             raise FetchError(f"HTTP 503 — {url}")
         u = urlparse(url)
