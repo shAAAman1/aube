@@ -56,8 +56,13 @@ remplacements d'articles anciens et les annonces tardives manquaient alors que l
    24 h doit se trouver dans l'archive API. C'est le seul contrôle externe de la perte.
 5. **Rejouabilité.** Le rejeu des parseurs sur les blobs reproduit exactement l'index.
 6. **Doublons sémantiques.** Aucun même objet sous deux clés.
-7. **Erreurs de run.** Toute erreur d'un run des 14 derniers jours bloque le critère ; les
-   plus anciennes sont affichées sans bloquer (les manifestes ne sont jamais supprimés).
+7. **Erreurs de run.** Toute erreur d'un run des 14 derniers jours bloque le critère.
+
+Les problèmes datés (erreur de run, trou CERN possible, annonce du témoin absente de
+l'archive) ne bloquent que s'ils tombent dans les 14 derniers jours. Les plus anciens sont
+affichés comme non bloquants (`hors_fenetre`), puisque les manifestes ne sont jamais supprimés.
+Les contrôles qui décrivent l'état actuel de l'archive (intégrité, rejeu, doublons, trous de
+fenêtre, retard, témoin inactif) bloquent toujours.
 
 Le critère est **ATTEINT** quand on a 14 jours consécutifs de runs sans erreur et aucun
 problème détecté. Code de sortie : 0 si atteint, 2 sinon.

@@ -384,7 +384,7 @@ def test_erreur_de_run_bornee_a_la_fenetre(env):
     # fenêtre de 14 jours = jours 1 à 14 : l'erreur du jour 0 n'en fait plus partie
     rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=14, hours=1), days=14)
     assert "erreur_de_run" not in rep["problemes"]
-    assert len(rep["erreurs_hors_fenetre"]) == 2   # 2 pages CERN
+    assert len(rep["hors_fenetre"]["erreur_de_run"]) == 2   # 2 pages CERN
     # fenêtre de 15 jours : elle en fait partie et bloque
     rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=14, hours=1), days=15)
     assert len(rep["problemes"]["erreur_de_run"]) == 2
@@ -477,6 +477,33 @@ def test_ctrl_c_suit_le_meme_chemin(env):
     m = go(cfg, web, T0)
     assert m["status"] == "interrupted"
     assert (Store(cfg.data_dir).manifests / f"{m['run_id']}.json").exists()
+
+
+def test_trou_cern_et_temoin_absent_bornes_a_la_fenetre(env):
+    """Un trou CERN et un témoin absent du début n'empêchent plus 14 jours propres ensuite ;
+    ils bloquent tant qu'ils sont dans la fenêtre, et restent affichés après."""
+    cfg, web = env
+    cfg.raw["arxiv"]["categories"] = ["hep-th"]                 # le seul témoin simulé
+    web.cern = [("a", "A")]
+    go(cfg, web, T0)
+    web.cern = [("b", "B")]                                     # jour 1 : trou CERN possible
+    web.witness = {"hep-th": [("2610.99999", "v1", "new")]}     # jour 1 : jamais archivé
+    go(cfg, web, T0 + timedelta(days=1))
+    for d in range(2, 17):
+        web.witness = {"hep-th": [(f"2610.{d:05d}", "v1", "new")]}
+        web.papers.append(paper(d, T0 + timedelta(days=d, hours=-3)))
+        go(cfg, web, T0 + timedelta(days=d))
+    # fenêtre de 14 jours = jours 3 à 16 : les deux problèmes du jour 1 en sont sortis
+    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=16, hours=1), days=14)
+    assert rep["problemes"] == {}, rep["problemes"]
+    assert rep["critere_phase1"] == "ATTEINT"
+    assert len(rep["hors_fenetre"]["cern_trou_possible"]) == 1
+    assert len(rep["hors_fenetre"]["temoin_absent"]) == 1
+    assert "2610.99999" in rep["hors_fenetre"]["temoin_absent"][0]
+    # fenêtre de 16 jours : ils y sont, et bloquent
+    rep = audit.audit(cfg.data_dir, now=T0 + timedelta(days=16, hours=1), days=16)
+    assert set(rep["problemes"]) == {"cern_trou_possible", "temoin_absent"}
+    assert rep["critere_phase1"] == "NON ATTEINT"
 
 
 def test_archive_deterministe(env, tmp_path):

@@ -175,6 +175,24 @@ la trace.
 - Limite : un signal reçu avant la boucle des sources (création de la ligne `runs`) ou pendant
   un rollback n'est pas couvert. Aucun élément n'est alors orphelin, sauf dans le second cas.
 
+### audit : `cern_trou_possible` et `temoin_absent` bornés à la fenêtre du critère
+- Décision du propriétaire : comme `erreur_de_run`, ces problèmes ne bloquent que s'ils datent
+  des `days` derniers jours.
+  - Date retenue : `run_id` pour un trou CERN ; `fetched_at` de la lecture RSS pour un témoin
+    (`temoin_absent` et `temoin_version_absente`).
+  - Les plus anciens sont rangés dans `hors_fenetre` (qui remplace `erreurs_hors_fenetre`),
+    affichés et non bloquants.
+- Raison : un trou CERN ne se rattrape pas (flux glissant), et les manifestes ne sont jamais
+  supprimés. Sans borne, un seul incident rendait le critère inatteignable pour toujours,
+  alors que le critère porte sur « 14 jours consécutifs sans perte ».
+- Ce que cela implique : une perte réelle de plus de 14 jours (un article annoncé et jamais
+  archivé) n'empêche plus ATTEINT. Elle reste visible dans `hors_fenetre`, et il faut la lire.
+- Restent non bornés, car ils décrivent l'état actuel de l'archive : `blob_manquant`,
+  `hash_invalide`, `blob_illisible`, `index_non_rejouable`, les doublons, `trou_de_fenetre`,
+  `source_en_retard` et `temoin_inactif`.
+- Preuves : `test_trou_cern_et_temoin_absent_bornes_a_la_fenetre` (non bloquants à 14 jours,
+  bloquants à 16) ; 5 mutations de la borne détectées.
+
 ## Volume disque (mesuré le 2026-10-04 après le run 0303Z)
 
 | | octets |

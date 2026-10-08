@@ -57,6 +57,16 @@ def audit(data_dir, now=None, days=14) -> dict:
     store = Store(data_dir)
     manifests = sorted(store.manifests.glob("*.json"))
     checks = defaultdict(list)          # nom -> liste de problèmes
+    # Fenêtre du critère : `days` jours jusqu'à aujourd'hui. Les manifestes ne sont jamais
+    # supprimés : un problème daté (erreur de run, trou CERN, témoin absent) antérieur à la
+    # fenêtre n'empêche plus « `days` jours sans perte ». Il reste affiché, sans bloquer.
+    # Les contrôles qui décrivent l'état ACTUEL de l'archive (intégrité, rejeu, doublons,
+    # trous de fenêtre, retard) ne sont pas bornés.
+    horizon_day = now.date() - timedelta(days=days - 1)
+    old = defaultdict(list)             # nom -> problèmes antérieurs à la fenêtre
+
+    def flag(name, day, line):
+        (checks if day >= horizon_day else old)[name].append(line)
     replay = set()                      # (source, item_id, version)
     cern_seen, cern_newest = set(), None
     witness = []                        # (fetched_at, cat, id, version, atype)
@@ -112,15 +122,16 @@ def audit(data_dir, now=None, days=14) -> dict:
         # que tout ce qu'on avait déjà (un vieux billet re-daté fournirait sinon un faux
         # point commun et masquerait le trou).
         if cern_run:
+            run_day = datetime.strptime(m["run_id"][:8], "%Y%m%d").date()
             ids = {it.item_id for it in cern_run}
             dates = [d for d in (_rfc822(it.published) for it in cern_run) if d]
             if cern_seen and not (ids & cern_seen):
-                checks["cern_trou_possible"].append(
-                    f"{m['run_id']} : aucun élément commun avec les runs précédents")
+                flag("cern_trou_possible", run_day,
+                     f"{m['run_id']} : aucun élément commun avec les runs précédents")
             elif cern_newest and dates and min(dates) > cern_newest:
-                checks["cern_trou_possible"].append(
-                    f"{m['run_id']} : élément le plus ancien {min(dates):%Y-%m-%d %H:%M} postérieur "
-                    f"à tout ce qui avait été vu ({cern_newest:%Y-%m-%d %H:%M})")
+                flag("cern_trou_possible", run_day,
+                     f"{m['run_id']} : élément le plus ancien {min(dates):%Y-%m-%d %H:%M} postérieur "
+                     f"à tout ce qui avait été vu ({cern_newest:%Y-%m-%d %H:%M})")
             cern_seen |= ids
             if dates:
                 cern_newest = max([cern_newest, *dates] if cern_newest else dates)
@@ -166,13 +177,12 @@ def audit(data_dir, now=None, days=14) -> dict:
         if ("arxiv", item_id, version) not in replay:
             has_id = any(k[0] == "arxiv" and k[1] == item_id for k in replay) if version else False
             tag = "temoin_version_absente" if has_id else "temoin_absent"
-            checks[tag].append(f"{cat} {item_id}{version} ({atype}) annoncé {fetched_at}")
+            flag(tag, _dt(fetched_at).date(), f"{cat} {item_id}{version} ({atype}) annoncé {fetched_at}")
 
     # 3b. témoin inactif : pour arXiv (OAI ne donne aucun total), le témoin est le SEUL
     # contrôle de complétude. S'il ne produit plus rien (format changé, flux déplacé), il faut
     # le dire plutôt que conclure « aucun témoin absent ». Jugé sur la partie de l'horizon
     # couverte par l'archive, dès qu'elle atteint une semaine.
-    horizon_day = now.date() - timedelta(days=days - 1)
     first_day = min((datetime.strptime(m["run_id"][:8], "%Y%m%d").date() for m in runs), default=None)
     if first_day:
         start = max(horizon_day, first_day)
@@ -198,15 +208,11 @@ def audit(data_dir, now=None, days=14) -> dict:
             "WHERE source='cern' GROUP BY 1 HAVING count(DISTINCT item_id) > 1"):
         checks["doublon_cern"].append(str(row))
 
-    # 6. erreurs de run : seules celles de la fenêtre du critère (`days` derniers jours) bloquent.
-    # Les manifestes ne sont jamais supprimés : sans cette borne, une seule erreur ancienne
-    # rendrait le critère inatteignable pour toujours. Les plus anciennes restent affichées.
-    horizon = (now.date() - timedelta(days=days - 1)).strftime("%Y%m%d")
-    old_errors = []
+    # 6. erreurs de run (bornées à la fenêtre du critère, comme les autres problèmes datés)
     for m in runs:
         for e in m.get("errors", []):
-            line = f"{m['run_id']} {e['source']}/{e['key']} : {e['error']}"
-            (checks["erreur_de_run"] if m["run_id"][:8] >= horizon else old_errors).append(line)
+            flag("erreur_de_run", datetime.strptime(m["run_id"][:8], "%Y%m%d").date(),
+                 f"{m['run_id']} {e['source']}/{e['key']} : {e['error']}")
 
     # Critère : `days` jours consécutifs (jusqu'à aujourd'hui) avec un run sans erreur.
     ok_days = {m["run_id"][:8] for m in runs if m.get("status") == "ok"}
@@ -225,7 +231,7 @@ def audit(data_dir, now=None, days=14) -> dict:
         "items_par_source": counts,
         "temoins_verifies": witness_checked,
         "problemes": {k: v for k, v in checks.items()},
-        "erreurs_hors_fenetre": old_errors,
+        "hors_fenetre": {k: v for k, v in old.items()},
         "critere_phase1": "ATTEINT" if streak >= days and not blocking else "NON ATTEINT",
     }
 
@@ -243,8 +249,11 @@ def render(rep: dict) -> str:
         lines += [f"    {x}" for x in v[:10]]
         if len(v) > 10:
             lines.append(f"    … {len(v) - 10} de plus")
-    if rep["erreurs_hors_fenetre"]:
-        lines.append(f"(info) {len(rep['erreurs_hors_fenetre'])} erreur(s) de run antérieure(s) "
-                     f"à la fenêtre de {rep['objectif_jours']} jours, non bloquante(s)")
+    for k, v in rep["hors_fenetre"].items():
+        lines.append(f"(info, non bloquant) {k} ({len(v)}) antérieur(s) à la fenêtre de "
+                     f"{rep['objectif_jours']} jours")
+        lines += [f"    {x}" for x in v[:3]]
+        if len(v) > 3:
+            lines.append(f"    … {len(v) - 3} de plus")
     lines.append(f"Critère phase 1 : {rep['critere_phase1']}")
     return "\n".join(lines)
